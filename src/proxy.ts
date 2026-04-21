@@ -3,10 +3,17 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 const PUBLIC_PATHS = ["/login", "/api/dev-login"];
 
+function redirectTo(request: NextRequest, path: string) {
+  const url = request.nextUrl.clone();
+  url.pathname = path;
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
+  // Public paths pass through untouched (with a session refresh).
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     const { supabaseResponse } = await updateSession(request);
     return supabaseResponse;
@@ -14,25 +21,41 @@ export async function proxy(request: NextRequest) {
 
   const { user, supabaseResponse, supabase } = await updateSession(request);
 
-  // Not authenticated → redirect to login
+  // Not authenticated → login
   if (!user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return redirectTo(request, "/login");
   }
 
-  // Check profile completion (skip if already on complete-profile page)
+  // Profile completion gate
   if (!pathname.startsWith("/complete-profile")) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_profile_complete")
+      .select("is_profile_complete, status, is_admin")
       .eq("id", user.id)
       .single();
 
     if (!profile || !profile.is_profile_complete) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/complete-profile";
-      return NextResponse.redirect(url);
+      return redirectTo(request, "/complete-profile");
+    }
+
+    // Approval gate
+    if (profile.status === "banned") {
+      if (!pathname.startsWith("/banned")) {
+        return redirectTo(request, "/banned");
+      }
+    } else if (profile.status === "pending") {
+      if (!pathname.startsWith("/pending-approval")) {
+        return redirectTo(request, "/pending-approval");
+      }
+    } else {
+      // approved
+      if (pathname.startsWith("/pending-approval") || pathname.startsWith("/banned")) {
+        return redirectTo(request, "/home");
+      }
+      // Admin-only routes
+      if (pathname.startsWith("/admin") && !profile.is_admin) {
+        return redirectTo(request, "/home");
+      }
     }
   }
 
