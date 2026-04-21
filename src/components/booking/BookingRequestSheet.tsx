@@ -18,7 +18,7 @@ type CheckResult =
   | { kind: "idle" }
   | { kind: "checking" }
   | { kind: "available"; slotIds: string[]; date: string; startHour: number; endHour: number }
-  | { kind: "fragmented" } // multiple non-own slots together cover the range, but no single one does
+  | { kind: "fragmented"; segments: Array<{ start: number; end: number }> } // multiple non-own slots together cover the range, but no single one does
   | { kind: "unavailable" } // gaps or no availability at all
   | { kind: "own_offer_overlap" }; // you're already offering your own spot during the range
 
@@ -154,7 +154,27 @@ export default function BookingRequestSheet() {
     }
     const needed = endHour - startHour;
     if (hoursCovered.size === needed) {
-      setResult({ kind: "fragmented" });
+      // Greedy minimum cover: from cursor, pick the slot that starts at or
+      // before cursor and reaches furthest. Gives the user the fewest
+      // sub-bookings they need to make.
+      const sorted = [...overlapping].sort(
+        (a, b) => a.start_hour - b.start_hour
+      );
+      const segments: Array<{ start: number; end: number }> = [];
+      let cursor = startHour;
+      while (cursor < endHour) {
+        let best: { start_hour: number; end_hour: number } | null = null;
+        for (const s of sorted) {
+          if (s.start_hour > cursor) break;
+          if (s.end_hour <= cursor) continue;
+          if (!best || s.end_hour > best.end_hour) best = s;
+        }
+        if (!best) break; // defensive; shouldn't happen since coverage is full
+        const segEnd = Math.min(best.end_hour, endHour);
+        segments.push({ start: cursor, end: segEnd });
+        cursor = segEnd;
+      }
+      setResult({ kind: "fragmented", segments });
       return;
     }
 
@@ -331,10 +351,18 @@ export default function BookingRequestSheet() {
 
             {result.kind === "fragmented" && (
               <div className="flex flex-col gap-2">
-                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
-                  אין חניה אחת שמכסה את כל הזמן המבוקש, אבל ניתן להזמין מספר
-                  חניות שונות ולהחליף ביניהן. יש לשנות את השעות או לפצל את
-                  ההזמנה לכמה בקשות קצרות יותר לפי הלוח.
+                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3 flex flex-col gap-2">
+                  <p>
+                    אין חניה אחת שמכסה את כל הזמן המבוקש. ניתן לפצל את
+                    ההזמנה לטווחים הבאים:
+                  </p>
+                  <ul className="flex flex-col gap-0.5 font-numbers pr-4 list-disc" dir="ltr">
+                    {result.segments.map((s, i) => (
+                      <li key={i}>
+                        {formatHour(s.start)}–{formatHour(s.end)}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
                   שנה שעות
