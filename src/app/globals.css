@@ -1,26 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ── Colors ── */
+  --color-primary: #5BAADB;
+  --color-primary-dark: #3A8BC2;
+  --color-primary-light: #8CC8ED;
+  --color-primary-pale: #D0E9F7;
+  --color-accent: #F0A885;
+  --color-accent-light: #F7CDB8;
+  --color-background: #F4F8FC;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #1A2B3D;
+  --color-text-secondary: #7E94A8;
+  --color-text-muted: #A8BDCF;
+  --color-success: #4CAF50;
+  --color-error: #E53935;
+
+  /* ── Typography ── */
+  --font-rubik: 'Rubik', sans-serif;
+  --font-jakarta: 'Plus Jakarta Sans', sans-serif;
+
+  /* ── Border Radius ── */
+  --radius-button: 50px;
+  --radius-card: 24px;
+  --radius-input: 16px;
+  --radius-badge: 12px;
+
+  /* ── Shadows ── */
+  --shadow-soft: 0 2px 8px rgba(58, 139, 194, 0.08);
+  --shadow-medium: 0 4px 16px rgba(58, 139, 194, 0.12);
+  --shadow-strong: 0 8px 32px rgba(58, 139, 194, 0.16);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base Styles ── */
+html {
+  direction: rtl;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-rubik);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Number font ── */
+.font-numbers {
+  font-family: var(--font-jakarta);
+  font-weight: 700;
+}
+
+/* ── Gradients ── */
+.gradient-header {
+  background: linear-gradient(135deg, #5BAADB 0%, #F0A885 100%);
+}
+
+.gradient-button {
+  background: linear-gradient(135deg, #5BAADB 0%, #3A8BC2 100%);
+}
+
+.gradient-button:hover {
+  background: linear-gradient(135deg, #3A8BC2 0%, #2D7AB0 100%);
+}
+
+/* ── Wave Divider ── */
+.wave-divider {
+  position: relative;
+  overflow: hidden;
+}
+
+.wave-divider::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 24px;
+  background: var(--color-background);
+  clip-path: ellipse(55% 100% at 50% 100%);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-primary-pale);
+  border-radius: 4px;
+}
+
+/* ── Focus ring ── */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Skeleton animation ── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-primary-pale) 25%, var(--color-surface) 50%, var(--color-primary-pale) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-card);
+}
+
+/* ── Scrollbar hide ── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Calendar Grid ── */
+.cell-past {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-background),
+    var(--color-background) 4px,
+    var(--color-primary-pale) 4px,
+    var(--color-primary-pale) 5px
+  );
+}
+
+.calendar-grid {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calendar-col-snap {
+  scroll-snap-align: start;
+}
+
+/* ── Slide-up animation ── */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
 }

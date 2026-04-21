@@ -1,0 +1,43 @@
+Issue,Test,Result,Summary
+SHA-238,Email/password login — happy path,PASS,Logged in via form with valid email/password; redirected to /home successfully
+SHA-239,Invalid credentials — login rejected,PASS,Entered wrong password; error message "אימייל או סיסמה שגויים" shown and login blocked
+SHA-240,Invalid phone format — validation error,BLOCKED,App uses email/password auth not phone OTP; browser native type=email validation blocks bad formats; server rejects invalid credentials
+SHA-241,International phone number support,BLOCKED,App uses email/password auth not phone OTP; no phone input exists; email auth is inherently international
+SHA-242,Profile completion — name + apartment,PASS,Filled name and apartment on /complete-profile; profile saved and redirected to /home
+SHA-243,Incomplete profile gate — blocked from app,PASS,User without complete profile redirected to /complete-profile by middleware on every route
+SHA-244,Session persistence — stays logged in,PASS,Logged in then reloaded page; session persisted via Supabase cookie and stayed on /home
+SHA-245,No parking spot — prompted to add one before offering,PASS,No-spot user navigated to /offer; shown empty state prompting to add a spot in profile
+SHA-246,Offer parking — happy path,PASS,Selected spot and time range on calendar; submitted offer; availability_slot created in DB
+SHA-247,Offer parking — multiple spots selector,PASS,User with 2 spots sees dropdown "בחר חניה" on /offer with both spots as options
+SHA-248,Offer parking — past time clamping,PASS,On today's column past hours shown as disabled; drag selection clamped to current hour via clampToCurrentHour()
+SHA-249,Offer parking — cross-midnight auto-split,BLOCKED,splitCrossMidnight() exists in time.ts but is NOT wired into the offer submit handler; offers insert raw without splitting
+SHA-250,Offer parking — overlap rejection,PASS,Submitted overlapping offer on same spot+date; DB GIST exclusion constraint (23P01) rejected it with error
+SHA-251,Offer parking — full day 00:00–24:00,PASS,Dragged full column 00-24; offer submitted as 0-24; formatHour(24) correctly shows "00:00"
+SHA-252,Delete offer — no active bookings,BLOCKED,No offer management UI exists; my-parking page shows reservations list only with no delete offer controls
+SHA-253,Delete offer — blocked when booking exists,BLOCKED,No offer management UI exists; cannot test delete-with-booking guard without the UI
+SHA-254,Homepage shows 7-day rolling window,PASS,Homepage calendar shows 7 day headers starting from today; get7DayWindow() generates correct date range
+SHA-255,Anonymous listings — no provider info shown,PASS,Homepage slots show only time and count; no provider name phone or spot number visible before booking
+SHA-256,Own spots shown muted and not bookable,PASS,Own offered slots shown with accent color opacity-60 cursor-not-allowed and "שלך" label; click does nothing
+SHA-257,Book parking — happy path,PASS,Clicked available slot on homepage; selected time range; booked successfully; redirected to confirmation page
+SHA-258,Partial booking — slot splitting,PASS,Booked 12-14 from 8-18 slot; DB split into 8-12 and 14-18 remaining availability slots
+SHA-259,Booked slot disappears from homepage,PASS,After booking a slot the booked hours no longer appear as available on the homepage calendar
+SHA-260,Multiple providers same time — shows count,PASS,Two providers offered overlapping hours; homepage cell shows "2" badge for those hours
+SHA-261,Self-booking prevention,PASS,Tried to book own spot; book_slot RPC raised CANNOT_BOOK_OWN_SPOT; UI showed error message
+SHA-262,Concurrent booking race condition,PASS,Fired two parallel book_slot RPCs via Promise.all; first succeeded second failed with RANGE_OUT_OF_BOUNDS due to FOR UPDATE lock
+SHA-263,Past slots hidden from homepage,PASS,Today's past hours shown as "past" state with cell-past class opacity-40 and not clickable
+SHA-264,Confirmation shows provider details after booking,PASS,Confirmation page shows spot number provider name phone number date and time range after booking
+SHA-265,WhatsApp thank-you button works,PASS,WhatsApp button links to wa.me with provider phone and pre-filled Hebrew thank-you message
+SHA-266,Confirmation shows correct booked time range,PASS,Booked 10-12; confirmation page shows "10:00–12:00" matching the selected range exactly
+SHA-267,My Bookings — shows upcoming and past,PASS,/my-bookings lists all bookings with time date spot provider name; confirmed shows "מאושרת" cancelled shows "בוטלה"
+SHA-268,Cancel upcoming booking — slot freed,PASS,Cancelled confirmed booking; reservation status changed to cancelled; freed slot restored to availability
+SHA-269,Cancel booking after start time — still works,PASS,Cancelled past booking (April 15 10-14) via cancel_booking RPC; returned 204 and status set to cancelled
+SHA-270,Auto-merge adjacent slots after cancellation,PASS,Offer 8-18 split by booking 12-14 into 8-12+14-18; cancelled booking; slots merged back to single 8-18
+SHA-271,Provider dashboard — no spots empty state,PASS,No-spot user on /my-parking sees "אין לך חניה רשומה" with "עבור לפרופיל" link button
+SHA-272,Provider dashboard — calendar view color coding,BLOCKED,Provider dashboard uses list view with card sections not a calendar; no color-coded grid exists on /my-parking
+SHA-273,Provider dashboard — booker details visible,PASS,Active bookings on /my-parking show booker name "User B" and time range "10:00–12:00" with date
+SHA-274,Provider dashboard — multi-spot selector,PASS,User with 2 spots sees tab buttons "חניה 42" and "חניה 99"; clicking switches to each spot's bookings
+SHA-275,Provider dashboard — history tab paginated,BLOCKED,History section shows past reservations with name date hours status sorted newest first; but no pagination implemented
+SHA-276,Add parking spot to profile,PASS,Added new spot number on /profile; spot created in DB and appears in spots list with remove button
+SHA-277,Duplicate spot number — rejected,PASS,Tried adding spot number already taken by another user; DB unique constraint rejected with error
+SHA-278,Multiple spots in profile,PASS,Profile lists both spots; offer page shows dropdown selector; provider dashboard shows tab buttons for each
+SHA-279,Empty state — no available parking,PASS,Homepage with no offers shows "אין חניות זמינות כרגע. בדוק שוב מאוחר יותר" with icon
