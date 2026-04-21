@@ -18,7 +18,9 @@ type CheckResult =
   | { kind: "idle" }
   | { kind: "checking" }
   | { kind: "available"; slotIds: string[]; date: string; startHour: number; endHour: number }
-  | { kind: "unavailable" };
+  | { kind: "fragmented" } // multiple non-own slots together cover the range, but no single one does
+  | { kind: "unavailable" } // gaps or no availability at all
+  | { kind: "own_offer_overlap" }; // you're already offering your own spot during the range
 
 export default function BookingRequestSheet() {
   const router = useRouter();
@@ -86,16 +88,37 @@ export default function BookingRequestSheet() {
       return;
     }
 
-    // Find any slot that fully covers [startHour, endHour) on that date,
-    // excluding your own spots.
-    const { data, error: queryError } = await supabase
+    // 1. Is the user already offering one of their own spots during this range?
+    //    If so, they shouldn't be booking someone else's spot at the same time.
+    const { data: ownOverlap, error: ownErr } = await supabase
       .from("availability_slots")
       .select("id")
       .eq("date", dateStr)
       .eq("is_available", true)
+      .eq("provider_id", user.id)
+      .lt("start_hour", endHour)
+      .gt("end_hour", startHour)
+      .limit(1);
+
+    if (ownErr) {
+      setError("שגיאה בבדיקת הזמינות");
+      setResult({ kind: "idle" });
+      return;
+    }
+    if (ownOverlap && ownOverlap.length > 0) {
+      setResult({ kind: "own_offer_overlap" });
+      return;
+    }
+
+    // 2. Fetch every non-own slot overlapping [startHour, endHour).
+    const { data: slots, error: queryError } = await supabase
+      .from("availability_slots")
+      .select("id, start_hour, end_hour")
+      .eq("date", dateStr)
+      .eq("is_available", true)
       .neq("provider_id", user.id)
-      .lte("start_hour", startHour)
-      .gte("end_hour", endHour)
+      .lt("start_hour", endHour)
+      .gt("end_hour", startHour)
       .order("created_at", { ascending: true });
 
     if (queryError) {
@@ -104,18 +127,39 @@ export default function BookingRequestSheet() {
       return;
     }
 
-    if (!data || data.length === 0) {
-      setResult({ kind: "unavailable" });
+    const overlapping = slots ?? [];
+
+    // 3. Single-slot coverage: any one slot that covers the full request?
+    const singleCovers = overlapping.filter(
+      (s) => s.start_hour <= startHour && s.end_hour >= endHour
+    );
+    if (singleCovers.length > 0) {
+      setResult({
+        kind: "available",
+        slotIds: singleCovers.map((s) => s.id),
+        date: dateStr,
+        startHour,
+        endHour,
+      });
       return;
     }
 
-    setResult({
-      kind: "available",
-      slotIds: data.map((d) => d.id),
-      date: dateStr,
-      startHour,
-      endHour,
-    });
+    // 4. Multi-slot coverage: do the non-own slots together cover the range
+    //    with no gaps?
+    const hoursCovered = new Set<number>();
+    for (const s of overlapping) {
+      const from = Math.max(s.start_hour, startHour);
+      const to = Math.min(s.end_hour, endHour);
+      for (let h = from; h < to; h++) hoursCovered.add(h);
+    }
+    const needed = endHour - startHour;
+    if (hoursCovered.size === needed) {
+      setResult({ kind: "fragmented" });
+      return;
+    }
+
+    // 5. Otherwise: gaps or nothing at all.
+    setResult({ kind: "unavailable" });
   }
 
   async function confirm() {
@@ -203,7 +247,7 @@ export default function BookingRequestSheet() {
             </div>
 
             <p className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-primary-pale)]/60 rounded-[var(--radius-input)] px-3 py-2">
-              ניתן לצפות בלוח הזמינות למטה לפני בקשת ההזמנה.
+              ניתן לצפות בלוח הזמינות בדף הבית לפני הזמנת חנייה.
             </p>
 
             <div className="flex flex-col gap-1.5">
@@ -285,11 +329,34 @@ export default function BookingRequestSheet() {
               </div>
             )}
 
+            {result.kind === "fragmented" && (
+              <div className="flex flex-col gap-2">
+                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
+                  אין חניה אחת שמכסה את כל הזמן המבוקש, אבל ניתן להזמין מספר
+                  חניות שונות ולהחליף ביניהן. יש לשנות את השעות או לפצל את
+                  ההזמנה לכמה בקשות קצרות יותר לפי הלוח.
+                </div>
+                <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
+                  שנה שעות
+                </Button>
+              </div>
+            )}
+
             {result.kind === "unavailable" && (
               <div className="flex flex-col gap-2">
                 <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
-                  אין חניה אחת שמכסה את כל הזמן המבוקש. אפשר לשנות את השעות,
-                  או לפצל את ההזמנה לכמה בקשות קצרות יותר לפי הלוח.
+                  אין חניה זמינה בזמן המבוקש. ניתן לצפות בלוח הזמינות בדף הבית.
+                </div>
+                <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
+                  שנה שעות
+                </Button>
+              </div>
+            )}
+
+            {result.kind === "own_offer_overlap" && (
+              <div className="flex flex-col gap-2">
+                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
+                  יש לך חניה מוצעת בזמן המבוקש — לא ניתן להזמין חניה אחרת באותו זמן.
                 </div>
                 <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
                   שנה שעות
