@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-const tabs = [
+const baseTabs = [
   {
     label: "בית",
     href: "/home",
@@ -49,6 +49,17 @@ const tabs = [
   },
 ];
 
+const adminTab = {
+  label: "ניהול",
+  href: "/admin",
+  icon: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" />
+      <polyline points="9 12 11 14 15 10" />
+    </svg>
+  ),
+};
+
 function NavTabContent({
   icon,
   label,
@@ -82,8 +93,9 @@ function NavTabContent({
   );
 }
 
-export default function BottomNav() {
+export default function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const tabs = isAdmin ? [...baseTabs, adminTab] : baseTabs;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-[var(--color-surface)] border-t border-[var(--color-primary-pale)] shadow-[var(--shadow-medium)] z-50">
