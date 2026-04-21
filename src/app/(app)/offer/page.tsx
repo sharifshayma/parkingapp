@@ -8,7 +8,7 @@ import WeekCalendarGrid from "@/components/offer/WeekCalendarGrid";
 import SelectionActionBar from "@/components/offer/SelectionActionBar";
 import { useExistingOffers } from "@/hooks/useExistingOffers";
 import { createClient } from "@/lib/supabase/client";
-import { get7DayWindow, formatDateISO, formatHour, formatDateHebrew } from "@/lib/utils/time";
+import { get7DayWindow, formatDateISO, formatHour, formatDateHebrew, splitCrossMidnight } from "@/lib/utils/time";
 import type { ParkingSpot } from "@/lib/types/domain";
 import type { Selection } from "@/hooks/useCalendarDrag";
 import Link from "next/link";
@@ -24,6 +24,7 @@ export default function OfferPage() {
   const [success, setSuccess] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null);
+  const [nextDayEndHour, setNextDayEndHour] = useState<number | null>(null);
 
   const dates = get7DayWindow();
   const { offers, refetch } = useExistingOffers(selectedSpotId);
@@ -69,15 +70,20 @@ export default function OfferPage() {
 
     const dateStr = formatDateISO(dates[selection.dayIndex]);
 
-    const { error: insertError } = await supabase
-      .from("availability_slots")
-      .insert({
-        provider_id: user.id,
-        parking_spot_id: selectedSpotId,
-        date: dateStr,
-        start_hour: selection.startHour,
-        end_hour: selection.endHour,
-      });
+    const splits =
+      nextDayEndHour !== null
+        ? splitCrossMidnight(dateStr, selection.startHour, nextDayEndHour)
+        : [{ date: dateStr, startHour: selection.startHour, endHour: selection.endHour }];
+
+    const rows = splits.map((s) => ({
+      provider_id: user.id,
+      parking_spot_id: selectedSpotId,
+      date: s.date,
+      start_hour: s.startHour,
+      end_hour: s.endHour,
+    }));
+
+    const { error: insertError } = await supabase.from("availability_slots").insert(rows);
 
     if (insertError) {
       if (insertError.code === "23P01") {
@@ -92,12 +98,14 @@ export default function OfferPage() {
     setSuccess(true);
     setSubmitting(false);
     setSelection(null);
+    setNextDayEndHour(null);
     refetch();
     setTimeout(() => setSuccess(false), 3000);
   }
 
   function handleCancel() {
     setSelection(null);
+    setNextDayEndHour(null);
     setError("");
   }
 
@@ -194,6 +202,8 @@ export default function OfferPage() {
           date={dates[selection.dayIndex]}
           startHour={selection.startHour}
           endHour={selection.endHour}
+          nextDayEndHour={nextDayEndHour}
+          onNextDayEndHourChange={setNextDayEndHour}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           submitting={submitting}
