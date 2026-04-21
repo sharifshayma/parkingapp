@@ -32,7 +32,7 @@ export default function LoginPage() {
       <Card className="mt-4">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <h2 className="text-xl font-bold text-center">
-            {mode === "login" ? "כניסה לחניה בגינדי4" : "הרשמה לחניה בגינדי4"}
+            {mode === "login" ? "כניסה לשיתוף חניה בגינדי 4" : "הרשמה לשיתוף חניה בגינדי 4"}
           </h2>
           <p className="text-sm text-[var(--color-text-secondary)] text-center">
             {mode === "login"
@@ -81,7 +81,7 @@ export default function LoginPage() {
             {loading
               ? "טוען..."
               : mode === "login"
-                ? "התחבר"
+                ? "כניסה"
                 : "הרשם"}
           </Button>
 

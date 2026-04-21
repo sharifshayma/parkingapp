@@ -7,6 +7,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { createClient } from "@/lib/supabase/client";
 import { formatHour } from "@/lib/utils/time";
 import Link from "next/link";
+import { track } from "@/lib/analytics";
 
 interface Booking {
   id: string;
@@ -76,10 +77,12 @@ export default function MyBookingsPage() {
 
     if (!user) return;
 
-    await supabase.rpc("cancel_booking", {
+    const { error: rpcError } = await supabase.rpc("cancel_booking", {
       p_reservation_id: reservationId,
       p_booker_id: user.id,
     });
+
+    if (!rpcError) track.bookingCancelled();
 
     await loadBookings();
     setCancelling(null);

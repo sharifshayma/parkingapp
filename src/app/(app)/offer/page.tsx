@@ -13,6 +13,7 @@ import type { ParkingSpot } from "@/lib/types/domain";
 import type { Selection } from "@/hooks/useCalendarDrag";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
+import { track } from "@/lib/analytics";
 
 export default function OfferPage() {
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
@@ -95,6 +96,7 @@ export default function OfferPage() {
       return;
     }
 
+    track.offerSubmitted();
     setSuccess(true);
     setSubmitting(false);
     setSelection(null);

@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { formatHour, formatDateHebrew } from "@/lib/utils/time";
+import { track } from "@/lib/analytics";
 
 export default function BookPage() {
   const params = useParams();
@@ -76,6 +77,7 @@ export default function BookPage() {
       });
 
       if (!rpcError && data) {
+        track.bookingConfirmed();
         router.push(`/book/confirmation?id=${data}`);
         return;
       }
