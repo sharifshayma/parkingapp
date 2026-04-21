@@ -3,11 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
+import { parseAndValidatePhone } from "@/lib/utils/phone";
 
-async function reportError(
-  error: unknown,
-  context: Parameters<typeof Sentry.captureException>[1]
-) {
+type ErrorContext = Parameters<typeof Sentry.captureException>[1];
+
+async function reportError(error: unknown, context: ErrorContext) {
+  console.error("[auth]", context?.tags, context?.extra, error);
   Sentry.captureException(error, context);
   // Vercel serverless: flush the transport before the lambda freezes.
   await Sentry.flush(2000);
@@ -28,7 +29,6 @@ export async function signIn(email: string, password: string) {
     return { error: "אימייל או סיסמה שגויים" };
   }
 
-  // Check if profile is complete
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("is_profile_complete")
@@ -48,27 +48,7 @@ export async function signIn(email: string, password: string) {
     });
   }
 
-  if (!profile) {
-    const { error: insertError } = await supabase.from("profiles").insert({
-      id: data.user.id,
-      phone: "",
-    });
-    if (insertError) {
-      await reportError(insertError, {
-        tags: { action: "signIn", step: "create_profile" },
-        extra: {
-          userId: data.user.id,
-          code: insertError.code,
-          details: insertError.details,
-          hint: insertError.hint,
-          message: insertError.message,
-        },
-      });
-    }
-    redirect("/complete-profile");
-  }
-
-  if (!profile.is_profile_complete) {
+  if (!profile || !profile.is_profile_complete) {
     redirect("/complete-profile");
   }
 
@@ -94,6 +74,7 @@ export async function signUp(email: string, password: string) {
   }
 
   if (!data.user) {
+    console.error("[auth] signUp returned no user", { email });
     Sentry.captureMessage("signUp succeeded but returned no user", {
       level: "error",
       tags: { action: "signUp", step: "no_user_returned" },
@@ -101,24 +82,6 @@ export async function signUp(email: string, password: string) {
     });
     await Sentry.flush(2000);
     return { error: "שגיאה בהרשמה" };
-  }
-
-  // Create profile
-  const { error: insertError } = await supabase.from("profiles").insert({
-    id: data.user.id,
-    phone: "",
-  });
-  if (insertError) {
-    await reportError(insertError, {
-      tags: { action: "signUp", step: "create_profile" },
-      extra: {
-        userId: data.user.id,
-        code: insertError.code,
-        details: insertError.details,
-        hint: insertError.hint,
-        message: insertError.message,
-      },
-    });
   }
 
   redirect("/complete-profile");
@@ -134,26 +97,39 @@ export async function completeProfile(formData: FormData) {
     redirect("/login");
   }
 
-  const fullName = formData.get("full_name") as string;
+  const fullName = (formData.get("full_name") as string | null)?.trim() ?? "";
+  const rawPhone = (formData.get("phone") as string | null)?.trim() ?? "";
   const spotNumbers = formData.getAll("spot_number") as string[];
 
   if (!fullName) {
     return { error: "יש למלא שם מלא" };
   }
 
-  // Update profile
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({
+  if (!rawPhone) {
+    return { error: "יש למלא מספר טלפון" };
+  }
+
+  const { valid, e164 } = parseAndValidatePhone(rawPhone);
+  if (!valid || !e164) {
+    return { error: "מספר טלפון לא תקין" };
+  }
+
+  // Upsert so a missing profile row self-heals instead of causing
+  // downstream FK violations on parking_spots.
+  const { error: profileError } = await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      phone: e164,
       full_name: fullName,
       is_profile_complete: true,
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+    },
+    { onConflict: "id" }
+  );
 
   if (profileError) {
     await reportError(profileError, {
-      tags: { action: "completeProfile", step: "update_profile" },
+      tags: { action: "completeProfile", step: "upsert_profile" },
       extra: {
         userId: user.id,
         code: profileError.code,
@@ -162,10 +138,12 @@ export async function completeProfile(formData: FormData) {
         message: profileError.message,
       },
     });
+    if (profileError.code === "23505") {
+      return { error: "מספר הטלפון הזה כבר רשום על משתמש אחר" };
+    }
     return { error: "שגיאה בעדכון הפרופיל" };
   }
 
-  // Add parking spots if provided
   for (const spotNumber of spotNumbers) {
     if (spotNumber.trim()) {
       const { error: spotError } = await supabase

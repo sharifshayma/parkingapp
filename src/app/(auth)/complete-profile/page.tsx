@@ -60,6 +60,17 @@ export default function CompleteProfilePage() {
 
         <Input label="שם מלא" name="full_name" required placeholder="ישראל ישראלי" />
 
+        <Input
+          label="מספר טלפון"
+          name="phone"
+          type="tel"
+          required
+          placeholder="050-1234567"
+          dir="ltr"
+          className="text-left"
+          autoComplete="tel"
+        />
+
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-[var(--color-text-primary)]">
             מספר חניה (אופציונלי)
