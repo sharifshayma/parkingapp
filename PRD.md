@@ -1,4 +1,4 @@
-# PRD — Skyline Parking / סקיילין חניה
+# PRD — Parking Sharing App
 
 ## Vision
 A building-exclusive web app that lets residents share and book parking spots effortlessly. Residents offer their spots when unused, others browse availability and book — all verified by phone to keep it building-only.
@@ -149,7 +149,7 @@ reservations
 
 ---
 
-## 4. Design System — Skyline Brand
+## 4. Design System
 
 | Element | Spec |
 |---------|------|
@@ -198,7 +198,7 @@ reservations
 **Goal:** Project setup, database schema, phone-based auth with whitelist gate.
 
 - [ ] Initialize Next.js 14 project with TypeScript + Tailwind
-- [ ] Configure Tailwind with Skyline brand tokens (colors, fonts, radii, shadows)
+- [ ] Configure Tailwind with brand tokens (colors, fonts, radii, shadows)
 - [ ] Set up Supabase project (database + auth)
 - [ ] Create database tables: `allowed_phones`, `profiles`
 - [ ] Implement phone OTP login/signup flow

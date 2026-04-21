@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Parking Sharing App
+
+A building-exclusive web app that lets residents share and book parking spots effortlessly. Residents offer their spots when unused, others browse availability and book — all verified by phone to keep it building-only.
+
+Built with **Next.js**, **Supabase** (Postgres + Auth + RLS), and **Tailwind CSS**.
+
+## Features
+
+- Phone-based authentication with building whitelist
+- Offer parking spots on a weekly calendar grid
+- Browse and book available spots by time slot
+- View your bookings and your offered spots
+- Row-level security and DB-level invariants (no self-booking)
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone and install
+
+```bash
+git clone https://github.com/sharifshayma/parkingapp.git
+cd parkingapp
+npm install
+```
+
+### 2. Configure environment
+
+Copy `.env.example` to `.env.local` and fill in your values:
+
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
+| `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project key (optional) |
+| `NEXT_PUBLIC_POSTHOG_HOST` | PostHog host (defaults to `https://app.posthog.com`) |
+
+### 3. Apply database migrations
+
+Migrations live in `supabase/migrations/`. Apply them with the Supabase CLI:
+
+```bash
+supabase db push
+```
+
+### 4. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+  app/
+    (app)/        # Authenticated app routes: home, offer, book, my-bookings, my-parking, profile
+    (auth)/       # Login and profile completion
+    api/          # Route handlers
+  components/     # UI primitives, calendar grids, layout
+  hooks/          # Calendar drag selection, offer fetching
+  lib/
+    supabase/     # Browser / server / admin / middleware clients
+    actions/      # Server actions (auth)
+    types/        # Domain types
+    utils/        # Phone + time helpers
+supabase/
+  migrations/     # Schema, RLS policies, functions, seed data
+```
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+Deployed on Vercel. Before first deploy, add all env vars listed above to the Vercel project settings (Production, Preview, Development).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Docs
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`PRD.md`](PRD.md) — Product requirements and design spec
