@@ -3,8 +3,7 @@ import { formatDateISO, get7DayWindow } from "@/lib/utils/time";
 import EmptyState from "@/components/ui/EmptyState";
 import AvailabilityCalendarGrid from "@/components/availability/AvailabilityCalendarGrid";
 import BookingRequestSheet from "@/components/booking/BookingRequestSheet";
-import Link from "next/link";
-import Button from "@/components/ui/Button";
+import OfferParkingSheet from "@/components/offer/OfferParkingSheet";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -51,11 +50,9 @@ export default async function HomePage() {
       <div className="flex-1">
         <BookingRequestSheet />
       </div>
-      <Link href="/offer" className="flex-1">
-        <Button size="sm" fullWidth>
-          הצע חניה
-        </Button>
-      </Link>
+      <div className="flex-1">
+        <OfferParkingSheet />
+      </div>
     </div>
   );
 
