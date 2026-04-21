@@ -4,6 +4,7 @@ export type AvailabilityCellState =
   | "past"
   | "available"
   | "own"
+  | "own_booked"
   | "empty"
   | "reserved";
 
@@ -19,6 +20,8 @@ function getStateClasses(state: AvailabilityCellState, count: number): string {
       return "cell-past opacity-40 cursor-not-allowed";
     case "reserved":
       return "bg-[var(--color-success)] cursor-not-allowed";
+    case "own_booked":
+      return "bg-[var(--color-accent)] cursor-not-allowed";
     case "own":
       return "bg-[var(--color-navy)] cursor-not-allowed";
     case "available":
@@ -51,6 +54,11 @@ export default function AvailabilityHourCell({
       {state === "own" && (
         <span className="absolute top-1 end-1 text-[9px] font-medium text-white">
           שלך
+        </span>
+      )}
+      {state === "own_booked" && (
+        <span className="absolute top-1 end-1 text-[9px] font-medium text-white">
+          נתפס
         </span>
       )}
       {state === "reserved" && (

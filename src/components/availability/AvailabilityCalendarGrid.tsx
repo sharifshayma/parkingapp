@@ -22,6 +22,7 @@ export interface ReservedRange {
 interface AvailabilityCalendarGridProps {
   availability: AggregatedAvailability[];
   reservations?: ReservedRange[];
+  providedReservations?: ReservedRange[];
 }
 
 interface HourInfo {
@@ -41,6 +42,7 @@ function getShortDayName(date: Date): string {
 export default function AvailabilityCalendarGrid({
   availability,
   reservations = [],
+  providedReservations = [],
 }: AvailabilityCalendarGridProps) {
   const router = useRouter();
   const dates = get7DayWindow();
@@ -83,6 +85,16 @@ export default function AvailabilityCalendarGrid({
     return set;
   }, [reservations]);
 
+  const providedBookedHours = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of providedReservations) {
+      for (let h = r.start_hour; h < r.end_hour; h++) {
+        set.add(`${r.date}_${h}`);
+      }
+    }
+    return set;
+  }, [providedReservations]);
+
   // Sync vertical scroll between gutter and grid
   const syncScroll = useCallback((source: "gutter" | "grid") => {
     if (syncing.current) return;
@@ -106,9 +118,11 @@ export default function AvailabilityCalendarGrid({
   function getCellState(dayIndex: number, hour: number): AvailabilityCellState {
     const dateStr = formatDateISO(dates[dayIndex]);
     const key = `${dateStr}_${hour}`;
-    // Priority: past → reserved → own → available → empty
+    // Priority: past → reserved (you booked) → own_booked (your spot was
+    // booked) → own (your spot, still available) → available → empty.
     if (isToday(dates[dayIndex]) && hour < clampToCurrentHour()) return "past";
     if (reservedHours.has(key)) return "reserved";
+    if (providedBookedHours.has(key)) return "own_booked";
     const info = hourMap.get(key);
     if (!info) return "empty";
     if (info.isOwnOnly) return "own";

@@ -24,15 +24,24 @@ export default async function HomePage() {
     }
   );
 
-  const { data: reservations } = user
-    ? await supabase
-        .from("reservations")
-        .select("date, start_hour, end_hour")
-        .eq("booker_id", user.id)
-        .eq("status", "confirmed")
-        .gte("date", fromDate)
-        .lte("date", toDate)
-    : { data: [] };
+  const [{ data: reservations }, { data: providedReservations }] = user
+    ? await Promise.all([
+        supabase
+          .from("reservations")
+          .select("date, start_hour, end_hour")
+          .eq("booker_id", user.id)
+          .eq("status", "confirmed")
+          .gte("date", fromDate)
+          .lte("date", toDate),
+        supabase
+          .from("reservations")
+          .select("date, start_hour, end_hour")
+          .eq("provider_id", user.id)
+          .eq("status", "confirmed")
+          .gte("date", fromDate)
+          .lte("date", toDate),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   const hasAnySlots = (availability || []).length > 0;
 
@@ -56,6 +65,7 @@ export default async function HomePage() {
           <AvailabilityCalendarGrid
             availability={availability || []}
             reservations={reservations || []}
+            providedReservations={providedReservations || []}
           />
 
           {/* Legend */}
@@ -71,6 +81,10 @@ export default async function HomePage() {
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-[var(--color-navy)]" />
               <span>שלך</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-sm bg-[var(--color-accent)]" />
+              <span>שלך — נתפס</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-[var(--color-success)]" />
