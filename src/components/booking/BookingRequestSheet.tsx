@@ -247,7 +247,7 @@ export default function BookingRequestSheet() {
             </div>
 
             <p className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-primary-pale)]/60 rounded-[var(--radius-input)] px-3 py-2">
-              ניתן לצפות בלוח הזמינות בדף הבית לפני הזמנת חנייה.
+              ניתן לצפות בלוח הזמינות בדף הבית לפני הזמנת חניה.
             </p>
 
             <div className="flex flex-col gap-1.5">
