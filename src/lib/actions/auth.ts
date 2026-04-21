@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 
 export async function signIn(email: string, password: string) {
   const supabase = await createClient();
@@ -11,21 +12,50 @@ export async function signIn(email: string, password: string) {
   });
 
   if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "signIn", step: "signInWithPassword" },
+      extra: { email, status: error.status, code: error.code },
+    });
     return { error: "אימייל או סיסמה שגויים" };
   }
 
   // Check if profile is complete
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("is_profile_complete")
     .eq("id", data.user.id)
-    .single();
+    .maybeSingle();
+
+  if (profileError) {
+    Sentry.captureException(profileError, {
+      tags: { action: "signIn", step: "fetch_profile" },
+      extra: {
+        userId: data.user.id,
+        code: profileError.code,
+        details: profileError.details,
+        hint: profileError.hint,
+        message: profileError.message,
+      },
+    });
+  }
 
   if (!profile) {
-    await supabase.from("profiles").insert({
+    const { error: insertError } = await supabase.from("profiles").insert({
       id: data.user.id,
       phone: "",
     });
+    if (insertError) {
+      Sentry.captureException(insertError, {
+        tags: { action: "signIn", step: "create_profile" },
+        extra: {
+          userId: data.user.id,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint,
+          message: insertError.message,
+        },
+      });
+    }
     redirect("/complete-profile");
   }
 
@@ -44,6 +74,10 @@ export async function signUp(email: string, password: string) {
   });
 
   if (error) {
+    Sentry.captureException(error, {
+      tags: { action: "signUp", step: "signUp" },
+      extra: { email, status: error.status, code: error.code },
+    });
     if (error.message.includes("already registered")) {
       return { error: "אימייל זה כבר רשום, נסה להתחבר" };
     }
@@ -51,14 +85,31 @@ export async function signUp(email: string, password: string) {
   }
 
   if (!data.user) {
+    Sentry.captureMessage("signUp succeeded but returned no user", {
+      level: "error",
+      tags: { action: "signUp", step: "no_user_returned" },
+      extra: { email },
+    });
     return { error: "שגיאה בהרשמה" };
   }
 
   // Create profile
-  await supabase.from("profiles").insert({
+  const { error: insertError } = await supabase.from("profiles").insert({
     id: data.user.id,
     phone: "",
   });
+  if (insertError) {
+    Sentry.captureException(insertError, {
+      tags: { action: "signUp", step: "create_profile" },
+      extra: {
+        userId: data.user.id,
+        code: insertError.code,
+        details: insertError.details,
+        hint: insertError.hint,
+        message: insertError.message,
+      },
+    });
+  }
 
   redirect("/complete-profile");
 }
@@ -91,6 +142,16 @@ export async function completeProfile(formData: FormData) {
     .eq("id", user.id);
 
   if (profileError) {
+    Sentry.captureException(profileError, {
+      tags: { action: "completeProfile", step: "update_profile" },
+      extra: {
+        userId: user.id,
+        code: profileError.code,
+        details: profileError.details,
+        hint: profileError.hint,
+        message: profileError.message,
+      },
+    });
     return { error: "שגיאה בעדכון הפרופיל" };
   }
 
@@ -105,6 +166,17 @@ export async function completeProfile(formData: FormData) {
         });
 
       if (spotError) {
+        Sentry.captureException(spotError, {
+          tags: { action: "completeProfile", step: "insert_parking_spot" },
+          extra: {
+            userId: user.id,
+            spotNumber: spotNumber.trim(),
+            code: spotError.code,
+            details: spotError.details,
+            hint: spotError.hint,
+            message: spotError.message,
+          },
+        });
         if (spotError.code === "23505") {
           return { error: `חניה מספר ${spotNumber} כבר רשומה על דייר אחר` };
         }
