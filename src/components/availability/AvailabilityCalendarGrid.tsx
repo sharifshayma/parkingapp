@@ -25,7 +25,6 @@ interface AvailabilityCalendarGridProps {
 }
 
 interface HourInfo {
-  count: number;
   isOwnOnly: boolean;
 }
 
@@ -55,12 +54,10 @@ export default function AvailabilityCalendarGrid({
         const key = `${slot.date}_${h}`;
         const existing = map.get(key);
         if (existing) {
-          existing.count += slot.available_count;
           // Only "own" if ALL slots at this hour are own
           if (!slot.is_own_spot) existing.isOwnOnly = false;
         } else {
           map.set(key, {
-            count: slot.available_count,
             isOwnOnly: slot.is_own_spot && slot.available_count === 1,
           });
         }
@@ -122,11 +119,6 @@ export default function AvailabilityCalendarGrid({
     if (!info) return "empty";
     if (info.isOwnOnly) return "own";
     return "available";
-  }
-
-  function getHourInfo(dayIndex: number, hour: number): HourInfo | undefined {
-    const dateStr = formatDateISO(dates[dayIndex]);
-    return hourMap.get(`${dateStr}_${hour}`);
   }
 
   return (
@@ -196,7 +188,6 @@ export default function AvailabilityCalendarGrid({
             {HOURS.flatMap((hour) =>
               dates.map((_, dayIndex) => {
                 const state = getCellState(dayIndex, hour);
-                const info = getHourInfo(dayIndex, hour);
                 return (
                   <div
                     key={`c${dayIndex}h${hour}`}
@@ -207,10 +198,7 @@ export default function AvailabilityCalendarGrid({
                     }
                     style={{ height: ROW_H }}
                   >
-                    <AvailabilityHourCell
-                      state={state}
-                      availableCount={info?.count ?? 0}
-                    />
+                    <AvailabilityHourCell state={state} />
                   </div>
                 );
               })
