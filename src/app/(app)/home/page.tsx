@@ -46,58 +46,59 @@ export default async function HomePage() {
 
   const hasAnySlots = (availability || []).length > 0;
 
+  const actionRow = (
+    <div className="flex gap-2">
+      <div className="flex-1">
+        <BookingRequestSheet />
+      </div>
+      <Link href="/offer" className="flex-1">
+        <Button size="sm" fullWidth>
+          הצע חניה
+        </Button>
+      </Link>
+    </div>
+  );
+
+  const legend = (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center text-[10px] text-[var(--color-text-secondary)]">
+      <div className="flex items-center gap-1">
+        <div className="w-3 h-3 rounded-sm bg-[var(--color-primary-pale)]" />
+        <span>זמין</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-3 h-3 rounded-sm bg-[var(--color-navy)]" />
+        <span>שלך</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-3 h-3 rounded-sm bg-[var(--color-navy-light)]" />
+        <span>שלך — תפוס</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-3 h-3 rounded-sm bg-[var(--color-success)]" />
+        <span>הזמנתי</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-3 h-3 rounded-sm cell-past" />
+        <span>עבר</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-3 py-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">חניות זמינות</h2>
-        <Link href="/offer">
-          <Button size="sm">הצע חניה</Button>
-        </Link>
-      </div>
+      <h2 className="text-lg font-bold">חניות זמינות</h2>
+
+      {actionRow}
+      {legend}
 
       {!hasAnySlots ? (
-        <>
-          <BookingRequestSheet />
-          <EmptyState message="אין חניות זמינות כרגע. בדוק שוב מאוחר יותר" />
-        </>
+        <EmptyState message="אין חניות זמינות כרגע. בדוק שוב מאוחר יותר" />
       ) : (
-        <>
-          {/* Legend */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center text-[10px] text-[var(--color-text-secondary)]">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-primary-pale)]" />
-              <span>זמין</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-navy)]" />
-              <span>שלך</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-navy-light)]" />
-              <span>שלך — תפוס</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-success)]" />
-              <span>הזמנתי</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm cell-past" />
-              <span>עבר</span>
-            </div>
-          </div>
-
-          <BookingRequestSheet />
-
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            לחץ על שעה זמינה בלוח כדי להזמין ישירות
-          </p>
-
-          <AvailabilityCalendarGrid
-            availability={availability || []}
-            reservations={reservations || []}
-            providedReservations={providedReservations || []}
-          />
-        </>
+        <AvailabilityCalendarGrid
+          availability={availability || []}
+          reservations={reservations || []}
+          providedReservations={providedReservations || []}
+        />
       )}
     </div>
   );

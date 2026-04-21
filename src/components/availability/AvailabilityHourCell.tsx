@@ -11,21 +11,20 @@ export type AvailabilityCellState =
 interface AvailabilityHourCellProps {
   state: AvailabilityCellState;
   availableCount: number;
-  onClick?: () => void;
 }
 
 function getStateClasses(state: AvailabilityCellState): string {
   switch (state) {
     case "past":
-      return "cell-past opacity-40 cursor-not-allowed";
+      return "cell-past opacity-40";
     case "reserved":
-      return "bg-[var(--color-success)] cursor-not-allowed";
+      return "bg-[var(--color-success)]";
     case "own_booked":
-      return "bg-[var(--color-navy-light)] cursor-not-allowed";
+      return "bg-[var(--color-navy-light)]";
     case "own":
-      return "bg-[var(--color-navy)] cursor-not-allowed";
+      return "bg-[var(--color-navy)]";
     case "available":
-      return "bg-[var(--color-primary-pale)] hover:bg-[var(--color-primary-light)] cursor-pointer transition-colors";
+      return "bg-[var(--color-primary-pale)]";
     case "empty":
       return "bg-[var(--color-surface)]";
   }
@@ -34,15 +33,12 @@ function getStateClasses(state: AvailabilityCellState): string {
 export default function AvailabilityHourCell({
   state,
   availableCount,
-  onClick,
 }: AvailabilityHourCellProps) {
   const stateCls = getStateClasses(state);
-  const isClickable = state === "available";
 
   return (
     <div
       className={`h-full border-b border-[var(--color-primary-pale)]/40 select-none relative ${stateCls}`}
-      onClick={isClickable ? onClick : undefined}
     >
       {state === "available" && (
         <span className="absolute top-0.5 end-1 text-[10px] font-numbers font-bold text-[var(--color-primary-dark)] leading-none">

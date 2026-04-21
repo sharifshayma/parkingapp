@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import AvailabilityHourCell from "./AvailabilityHourCell";
 import type { AvailabilityCellState } from "./AvailabilityHourCell";
 import type { AggregatedAvailability } from "@/lib/types/domain";
@@ -28,7 +27,6 @@ interface AvailabilityCalendarGridProps {
 interface HourInfo {
   count: number;
   isOwnOnly: boolean;
-  slotGroupId: string;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -44,7 +42,6 @@ export default function AvailabilityCalendarGrid({
   reservations = [],
   providedReservations = [],
 }: AvailabilityCalendarGridProps) {
-  const router = useRouter();
   const dates = get7DayWindow();
   const gutterRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,7 +51,6 @@ export default function AvailabilityCalendarGrid({
   const hourMap = useMemo(() => {
     const map = new Map<string, HourInfo>();
     for (const slot of availability) {
-      const slotGroupId = `${slot.date}_${slot.start_hour}_${slot.end_hour}`;
       for (let h = slot.start_hour; h < slot.end_hour; h++) {
         const key = `${slot.date}_${h}`;
         const existing = map.get(key);
@@ -66,7 +62,6 @@ export default function AvailabilityCalendarGrid({
           map.set(key, {
             count: slot.available_count,
             isOwnOnly: slot.is_own_spot && slot.available_count === 1,
-            slotGroupId,
           });
         }
       }
@@ -132,22 +127,6 @@ export default function AvailabilityCalendarGrid({
   function getHourInfo(dayIndex: number, hour: number): HourInfo | undefined {
     const dateStr = formatDateISO(dates[dayIndex]);
     return hourMap.get(`${dateStr}_${hour}`);
-  }
-
-  function handleCellClick(dayIndex: number, hour: number) {
-    const dateStr = formatDateISO(dates[dayIndex]);
-    // Find the containing range for this hour
-    const range = availability.find(
-      (s) =>
-        s.date === dateStr &&
-        hour >= s.start_hour &&
-        hour < s.end_hour &&
-        !(s.is_own_spot && s.available_count === 1)
-    );
-    if (range) {
-      const slotGroupId = `${range.date}_${range.start_hour}_${range.end_hour}`;
-      router.push(`/book/${slotGroupId}`);
-    }
   }
 
   return (
@@ -231,7 +210,6 @@ export default function AvailabilityCalendarGrid({
                     <AvailabilityHourCell
                       state={state}
                       availableCount={info?.count ?? 0}
-                      onClick={() => handleCellClick(dayIndex, hour)}
                     />
                   </div>
                 );
