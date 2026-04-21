@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
@@ -22,16 +22,24 @@ type CheckResult =
   | { kind: "unavailable" } // gaps or no availability at all
   | { kind: "own_offer_overlap" }; // you're already offering your own spot during the range
 
+function minStartForDate(d: Date): number {
+  return isToday(d) ? clampToCurrentHour() : 0;
+}
+
 export default function BookingRequestSheet() {
   const router = useRouter();
-  const dates = get7DayWindow();
+  const dates = useMemo(() => get7DayWindow(), []);
   const [open, setOpen] = useState(false);
   const [dayIndex, setDayIndex] = useState(0);
-  const [startHour, setStartHour] = useState(clampToCurrentHour() + 1);
-  const [endHour, setEndHour] = useState(clampToCurrentHour() + 2);
+  const [startHour, setStartHour] = useState(0);
+  const [endHour, setEndHour] = useState(1);
   const [result, setResult] = useState<CheckResult>({ kind: "idle" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [availByDate, setAvailByDate] = useState<Map<string, Set<number>>>(
+    new Map()
+  );
+  const [availLoading, setAvailLoading] = useState(false);
 
   // Reset result whenever the inputs change
   useEffect(() => {
@@ -39,14 +47,108 @@ export default function BookingRequestSheet() {
     setError("");
   }, [dayIndex, startHour, endHour]);
 
-  function openSheet() {
-    setDayIndex(0);
-    const now = clampToCurrentHour();
-    setStartHour(Math.min(now + 1, 23));
-    setEndHour(Math.min(now + 2, 24));
+  const availableDateIndexes = useMemo(() => {
+    return dates
+      .map((_, i) => i)
+      .filter((i) => {
+        const set = availByDate.get(formatDateISO(dates[i]));
+        if (!set || set.size === 0) return false;
+        const min = minStartForDate(dates[i]);
+        for (const h of set) if (h >= min) return true;
+        return false;
+      });
+  }, [dates, availByDate]);
+
+  const selectedDate = dates[dayIndex];
+  const dateStr = formatDateISO(selectedDate);
+  const selectedDateHours = availByDate.get(dateStr) ?? new Set<number>();
+  const minStart = minStartForDate(selectedDate);
+
+  const startOptions = useMemo(() => {
+    const arr: number[] = [];
+    for (const h of selectedDateHours) if (h >= minStart) arr.push(h);
+    arr.sort((a, b) => a - b);
+    return arr;
+  }, [selectedDateHours, minStart]);
+
+  // End options: walk forward from startHour while each hour is in the
+  // available set; valid ends are [startHour+1 .. run_end] capped at 24.
+  const endOptions = useMemo(() => {
+    const arr: number[] = [];
+    let h = startHour;
+    while (selectedDateHours.has(h) && h < 24) {
+      h++;
+      arr.push(h);
+    }
+    return arr;
+  }, [selectedDateHours, startHour]);
+
+  const loadAvailability = useCallback(async () => {
+    setAvailLoading(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setAvailByDate(new Map());
+      setAvailLoading(false);
+      return new Map<string, Set<number>>();
+    }
+
+    const fromDate = formatDateISO(dates[0]);
+    const toDate = formatDateISO(dates[dates.length - 1]);
+
+    const { data } = await supabase
+      .from("availability_slots")
+      .select("date, start_hour, end_hour")
+      .eq("is_available", true)
+      .neq("provider_id", user.id)
+      .gte("date", fromDate)
+      .lte("date", toDate);
+
+    const map = new Map<string, Set<number>>();
+    for (const s of data ?? []) {
+      let set = map.get(s.date);
+      if (!set) {
+        set = new Set<number>();
+        map.set(s.date, set);
+      }
+      for (let h = s.start_hour; h < s.end_hour; h++) set.add(h);
+    }
+    setAvailByDate(map);
+    setAvailLoading(false);
+    return map;
+  }, [dates]);
+
+  async function openSheet() {
     setResult({ kind: "idle" });
     setError("");
     setOpen(true);
+    const map = await loadAvailability();
+
+    // Pick the first date with at least one reachable available hour.
+    const firstIdx = dates.findIndex((d) => {
+      const set = map.get(formatDateISO(d));
+      if (!set || set.size === 0) return false;
+      const min = minStartForDate(d);
+      for (const h of set) if (h >= min) return true;
+      return false;
+    });
+
+    if (firstIdx < 0) {
+      // Nothing available — defaults don't matter, sheet will show empty state.
+      setDayIndex(0);
+      return;
+    }
+
+    setDayIndex(firstIdx);
+    const day = dates[firstIdx];
+    const set = map.get(formatDateISO(day))!;
+    const min = minStartForDate(day);
+    const starts = Array.from(set).filter((h) => h >= min).sort((a, b) => a - b);
+    const s = starts[0];
+    setStartHour(s);
+    setEndHour(s + 1);
   }
 
   function closeSheet() {
@@ -54,26 +156,28 @@ export default function BookingRequestSheet() {
     setOpen(false);
   }
 
-  const selectedDate = dates[dayIndex];
-  const dateStr = formatDateISO(selectedDate);
-  const selectedIsToday = isToday(selectedDate);
-  const minStart = selectedIsToday ? clampToCurrentHour() : 0;
-  const startOptions: number[] = [];
-  for (let h = minStart; h <= 23; h++) startOptions.push(h);
-  const endOptions: number[] = [];
-  for (let h = startHour + 1; h <= 24; h++) endOptions.push(h);
-
-  // Keep end > start whenever start changes
+  // When day changes: snap startHour to the first available start on that day.
   useEffect(() => {
-    if (endHour <= startHour) setEndHour(startHour + 1);
-  }, [startHour, endHour]);
-
-  // If day changes to today and startHour is past, bump it forward
-  useEffect(() => {
-    if (selectedIsToday && startHour < minStart) {
-      setStartHour(minStart);
+    if (!open || availLoading) return;
+    const set = availByDate.get(dateStr);
+    if (!set || set.size === 0) return;
+    const starts = Array.from(set).filter((h) => h >= minStart).sort((a, b) => a - b);
+    if (starts.length === 0) return;
+    if (!starts.includes(startHour)) {
+      setStartHour(starts[0]);
     }
-  }, [dayIndex, selectedIsToday, startHour, minStart]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayIndex, availByDate, open]);
+
+  // When startHour changes: snap endHour into the valid endOptions range.
+  useEffect(() => {
+    if (!open || availLoading) return;
+    if (endOptions.length === 0) return;
+    if (!endOptions.includes(endHour)) {
+      setEndHour(endOptions[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startHour, endOptions.length, open]);
 
   async function check() {
     setResult({ kind: "checking" });
@@ -231,7 +335,15 @@ export default function BookingRequestSheet() {
     setSubmitting(false);
   }
 
-  const canCheck = endHour > startHour && !submitting && result.kind !== "checking";
+  const canCheck =
+    endHour > startHour &&
+    !submitting &&
+    result.kind !== "checking" &&
+    startOptions.includes(startHour) &&
+    endOptions.includes(endHour);
+
+  const noAvailabilityAtAll =
+    !availLoading && availableDateIndexes.length === 0;
 
   return (
     <>
@@ -270,126 +382,147 @@ export default function BookingRequestSheet() {
               ניתן לצפות בלוח הזמינות בדף הבית לפני הזמנת חניה.
             </p>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">יום</label>
-              <select
-                value={dayIndex}
-                onChange={(e) => setDayIndex(Number(e.target.value))}
-                className="w-full px-4 py-3 rounded-[var(--radius-input)] border border-[var(--color-primary-pale)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-              >
-                {dates.map((d, i) => (
-                  <option key={i} value={i}>
-                    {formatDateHebrew(d)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">משעה</label>
-                <select
-                  value={startHour}
-                  onChange={(e) => setStartHour(Number(e.target.value))}
-                  className="w-full px-4 py-3 rounded-[var(--radius-input)] border border-[var(--color-primary-pale)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] focus:outline-none font-numbers"
-                >
-                  {startOptions.map((h) => (
-                    <option key={h} value={h}>
-                      {formatHour(h)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">עד שעה</label>
-                <select
-                  value={endHour}
-                  onChange={(e) => setEndHour(Number(e.target.value))}
-                  className="w-full px-4 py-3 rounded-[var(--radius-input)] border border-[var(--color-primary-pale)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] focus:outline-none font-numbers"
-                >
-                  {endOptions.map((h) => (
-                    <option key={h} value={h}>
-                      {formatHour(h)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {result.kind === "idle" && (
-              <Button
-                variant="primary"
-                fullWidth
-                onClick={check}
-                disabled={!canCheck}
-              >
-                בדוק זמינות
-              </Button>
+            {availLoading && (
+              <p className="text-sm text-[var(--color-text-secondary)] text-center py-4">
+                טוען זמינות…
+              </p>
             )}
 
-            {result.kind === "checking" && (
-              <Button variant="primary" fullWidth disabled>
-                בודק...
-              </Button>
-            )}
-
-            {result.kind === "available" && (
-              <div className="flex flex-col gap-3">
-                <div className="text-sm bg-[var(--color-success)]/10 text-[var(--color-success)] font-medium rounded-[var(--radius-input)] px-3 py-3 text-center">
-                  ✓ החניה זמינה ל-{formatHour(result.startHour)}–{formatHour(result.endHour)} ({result.endHour - result.startHour} שעות)
+            {noAvailabilityAtAll && (
+              <div className="flex flex-col gap-2">
+                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3 text-center">
+                  אין חניות זמינות ב-7 הימים הקרובים.
                 </div>
-                <Button
-                  variant="success"
-                  fullWidth
-                  onClick={confirm}
-                  disabled={submitting}
-                >
-                  {submitting ? "מזמין..." : "אשר הזמנה"}
+                <Button variant="outline" fullWidth onClick={closeSheet}>
+                  סגור
                 </Button>
               </div>
             )}
 
-            {result.kind === "fragmented" && (
-              <div className="flex flex-col gap-2">
-                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3 flex flex-col gap-2">
-                  <p>
-                    אין חניה אחת שמכסה את כל הזמן המבוקש. ניתן לפצל את
-                    ההזמנה לטווחים הבאים:
-                  </p>
-                  <ul className="flex flex-col gap-0.5 font-numbers pr-4 list-disc" dir="ltr">
-                    {result.segments.map((s, i) => (
-                      <li key={i}>
-                        {formatHour(s.start)}–{formatHour(s.end)}
-                      </li>
+            {!availLoading && !noAvailabilityAtAll && (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">יום</label>
+                  <select
+                    value={dayIndex}
+                    onChange={(e) => setDayIndex(Number(e.target.value))}
+                    className="w-full px-4 py-3 rounded-[var(--radius-input)] border border-[var(--color-primary-pale)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  >
+                    {availableDateIndexes.map((i) => (
+                      <option key={i} value={i}>
+                        {formatDateHebrew(dates[i])}
+                      </option>
                     ))}
-                  </ul>
+                  </select>
                 </div>
-                <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
-                  שנה שעות
-                </Button>
-              </div>
-            )}
 
-            {result.kind === "unavailable" && (
-              <div className="flex flex-col gap-2">
-                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
-                  אין חניה זמינה בזמן המבוקש. ניתן לצפות בלוח הזמינות בדף הבית.
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium">משעה</label>
+                    <select
+                      value={startHour}
+                      onChange={(e) => setStartHour(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-[var(--radius-input)] border border-[var(--color-primary-pale)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] focus:outline-none font-numbers"
+                    >
+                      {startOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {formatHour(h)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium">עד שעה</label>
+                    <select
+                      value={endHour}
+                      onChange={(e) => setEndHour(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-[var(--radius-input)] border border-[var(--color-primary-pale)] bg-[var(--color-surface)] focus:border-[var(--color-primary)] focus:outline-none font-numbers"
+                    >
+                      {endOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {formatHour(h)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
-                  שנה שעות
-                </Button>
-              </div>
-            )}
 
-            {result.kind === "own_offer_overlap" && (
-              <div className="flex flex-col gap-2">
-                <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
-                  יש לך חניה מוצעת בזמן המבוקש — לא ניתן להזמין חניה אחרת באותו זמן.
-                </div>
-                <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
-                  שנה שעות
-                </Button>
-              </div>
+                {result.kind === "idle" && (
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    onClick={check}
+                    disabled={!canCheck}
+                  >
+                    בדוק זמינות
+                  </Button>
+                )}
+
+                {result.kind === "checking" && (
+                  <Button variant="primary" fullWidth disabled>
+                    בודק...
+                  </Button>
+                )}
+
+                {result.kind === "available" && (
+                  <div className="flex flex-col gap-3">
+                    <div className="text-sm bg-[var(--color-success)]/10 text-[var(--color-success)] font-medium rounded-[var(--radius-input)] px-3 py-3 text-center">
+                      ✓ החניה זמינה ל-{formatHour(result.startHour)}–{formatHour(result.endHour)} ({result.endHour - result.startHour} שעות)
+                    </div>
+                    <Button
+                      variant="success"
+                      fullWidth
+                      onClick={confirm}
+                      disabled={submitting}
+                    >
+                      {submitting ? "מזמין..." : "אשר הזמנה"}
+                    </Button>
+                  </div>
+                )}
+
+                {result.kind === "fragmented" && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3 flex flex-col gap-2">
+                      <p>
+                        אין חניה אחת שמכסה את כל הזמן המבוקש. ניתן לפצל את
+                        ההזמנה לטווחים הבאים:
+                      </p>
+                      <ul className="flex flex-col gap-0.5 font-numbers pr-4 list-disc" dir="ltr">
+                        {result.segments.map((s, i) => (
+                          <li key={i}>
+                            {formatHour(s.start)}–{formatHour(s.end)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
+                      שנה שעות
+                    </Button>
+                  </div>
+                )}
+
+                {result.kind === "unavailable" && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
+                      אין חניה זמינה בזמן המבוקש. ניתן לצפות בלוח הזמינות בדף הבית.
+                    </div>
+                    <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
+                      שנה שעות
+                    </Button>
+                  </div>
+                )}
+
+                {result.kind === "own_offer_overlap" && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3">
+                      יש לך חניה מוצעת בזמן המבוקש — לא ניתן להזמין חניה אחרת באותו זמן.
+                    </div>
+                    <Button variant="outline" fullWidth onClick={() => setResult({ kind: "idle" })}>
+                      שנה שעות
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
 
             {error && (
