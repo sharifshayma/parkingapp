@@ -10,7 +10,6 @@ export type AvailabilityCellState =
 
 interface AvailabilityHourCellProps {
   state: AvailabilityCellState;
-  availableCount: number;
 }
 
 function getStateClasses(state: AvailabilityCellState): string {
@@ -32,7 +31,6 @@ function getStateClasses(state: AvailabilityCellState): string {
 
 export default function AvailabilityHourCell({
   state,
-  availableCount,
 }: AvailabilityHourCellProps) {
   const stateCls = getStateClasses(state);
 
@@ -40,11 +38,6 @@ export default function AvailabilityHourCell({
     <div
       className={`h-full border-b border-[var(--color-primary-pale)]/40 select-none relative ${stateCls}`}
     >
-      {state === "available" && (
-        <span className="absolute top-0.5 end-1 text-[10px] font-numbers font-bold text-[var(--color-primary-dark)] leading-none">
-          {availableCount}
-        </span>
-      )}
       {state === "own" && (
         <span className="absolute top-1 end-1 text-[10px] font-medium text-white leading-none">
           שלך
