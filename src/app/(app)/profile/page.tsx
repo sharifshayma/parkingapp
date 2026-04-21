@@ -7,14 +7,20 @@ import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, ParkingSpot } from "@/lib/types/domain";
 import { useRouter } from "next/navigation";
+import { formatDateISO } from "@/lib/utils/time";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [email, setEmail] = useState<string>("");
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
+  const [lockedSpotIds, setLockedSpotIds] = useState<Set<string>>(new Set());
+  const [editingSpotId, setEditingSpotId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
   const [fullName, setFullName] = useState("");
   const [newSpot, setNewSpot] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingSpotId, setSavingSpotId] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -27,6 +33,8 @@ export default function ProfilePage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
+      setEmail(user.email ?? "");
 
       const { data: profileData } = await supabase
         .from("profiles")
@@ -43,7 +51,28 @@ export default function ProfilePage() {
         setProfile(profileData);
         setFullName(profileData.full_name || "");
       }
-      if (spotsData) setSpots(spotsData);
+
+      const spotList = spotsData ?? [];
+      setSpots(spotList);
+
+      // Which spots have active/future confirmed reservations? Those are
+      // locked — the spot_number can't be changed.
+      if (spotList.length > 0) {
+        const today = formatDateISO(new Date());
+        const { data: locked } = await supabase
+          .from("reservations")
+          .select("parking_spot_id")
+          .in(
+            "parking_spot_id",
+            spotList.map((s) => s.id)
+          )
+          .eq("status", "confirmed")
+          .gte("date", today);
+        setLockedSpotIds(
+          new Set((locked ?? []).map((r) => r.parking_spot_id as string))
+        );
+      }
+
       setLoading(false);
     }
     load();
@@ -109,9 +138,14 @@ export default function ProfilePage() {
   }
 
   async function handleRemoveSpot(spotId: string) {
+    if (lockedSpotIds.has(spotId)) {
+      setError("לא ניתן למחוק חניה עם הזמנות עתידיות");
+      return;
+    }
+
     const supabase = createClient();
 
-    // Check for future availability
+    // Also block if the spot still has future offered availability slots
     const { data: futureSlots } = await supabase
       .from("availability_slots")
       .select("id")
@@ -134,6 +168,50 @@ export default function ProfilePage() {
     }
   }
 
+  function startEditSpot(spot: ParkingSpot) {
+    if (lockedSpotIds.has(spot.id)) return;
+    setError("");
+    setEditingSpotId(spot.id);
+    setEditingValue(spot.spot_number);
+  }
+
+  function cancelEditSpot() {
+    setEditingSpotId(null);
+    setEditingValue("");
+  }
+
+  async function saveEditSpot(spotId: string) {
+    const trimmed = editingValue.trim();
+    if (!trimmed) return;
+    setError("");
+    setSavingSpotId(spotId);
+
+    const supabase = createClient();
+    const { data, error: updateError } = await supabase
+      .from("parking_spots")
+      .update({ spot_number: trimmed })
+      .eq("id", spotId)
+      .select()
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "23505") {
+        setError(`חניה מספר ${trimmed} כבר רשומה על דייר אחר`);
+      } else {
+        setError("שגיאה בעדכון החניה");
+      }
+      setSavingSpotId(null);
+      return;
+    }
+
+    if (data) {
+      setSpots(spots.map((s) => (s.id === spotId ? data : s)));
+      setEditingSpotId(null);
+      setEditingValue("");
+    }
+    setSavingSpotId(null);
+  }
+
   if (loading) {
     return (
       <div className="py-8">
@@ -148,8 +226,22 @@ export default function ProfilePage() {
 
       <Card>
         <div className="flex flex-col gap-4">
-          <div className="text-sm text-[var(--color-text-secondary)]">
-            טלפון: <span className="font-numbers" dir="ltr">{profile?.phone}</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+              אימייל
+            </span>
+            <span className="text-sm font-numbers" dir="ltr">
+              {email || "—"}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+              טלפון
+            </span>
+            <span className="text-sm font-numbers" dir="ltr">
+              {profile?.phone || "—"}
+            </span>
           </div>
 
           <Input
@@ -175,21 +267,71 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-3">
           <h3 className="text-base font-semibold">החניות שלי</h3>
 
+          {spots.map((spot) => {
+            const locked = lockedSpotIds.has(spot.id);
+            const isEditing = editingSpotId === spot.id;
+            const isSaving = savingSpotId === spot.id;
 
-          {spots.map((spot) => (
-            <div
-              key={spot.id}
-              className="flex items-center justify-between py-2 border-b border-[var(--color-primary-pale)] last:border-0"
-            >
-              <span className="font-numbers">חניה {spot.spot_number}</span>
-              <button
-                onClick={() => handleRemoveSpot(spot.id)}
-                className="text-sm text-[var(--color-error)] hover:underline"
+            return (
+              <div
+                key={spot.id}
+                className="flex flex-col gap-1 py-2 border-b border-[var(--color-primary-pale)] last:border-0"
               >
-                הסר
-              </button>
-            </div>
-          ))}
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      className="flex-1"
+                      disabled={isSaving}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => saveEditSpot(spot.id)}
+                      disabled={isSaving || !editingValue.trim()}
+                    >
+                      {isSaving ? "שומר..." : "שמור"}
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={cancelEditSpot}
+                      disabled={isSaving}
+                      className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="font-numbers">חניה {spot.spot_number}</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => startEditSpot(spot)}
+                        disabled={locked}
+                        className="text-sm text-[var(--color-primary-dark)] hover:underline disabled:text-[var(--color-text-muted)] disabled:cursor-not-allowed disabled:no-underline"
+                      >
+                        ערוך
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSpot(spot.id)}
+                        disabled={locked}
+                        className="text-sm text-[var(--color-error)] hover:underline disabled:text-[var(--color-text-muted)] disabled:cursor-not-allowed disabled:no-underline"
+                      >
+                        הסר
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {locked && !isEditing && (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    לא ניתן לערוך — קיימות הזמנות עתידיות על החניה.
+                  </p>
+                )}
+              </div>
+            );
+          })}
 
           <div className="flex gap-2">
             <Input

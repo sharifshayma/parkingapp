@@ -159,6 +159,25 @@ export default function MyParkingPage() {
     <div className="flex flex-col gap-4 py-4">
       <h2 className="text-lg font-bold">החניה שלי</h2>
 
+      {/* Read-only parking-number overview */}
+      <Card>
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-[var(--color-text-secondary)]">
+            {spots.length === 1 ? "מספר החניה שלך" : "מספרי החניות שלך"}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {spots.map((spot) => (
+              <span
+                key={spot.id}
+                className="font-numbers font-bold text-[var(--color-primary-dark)] bg-[var(--color-primary-pale)] rounded-[var(--radius-badge)] px-3 py-1 text-sm"
+              >
+                {spot.spot_number}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Card>
+
       {/* Spot selector */}
       {spots.length > 1 && (
         <div className="flex gap-2 overflow-x-auto">
