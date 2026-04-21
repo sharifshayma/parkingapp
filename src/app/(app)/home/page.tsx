@@ -24,6 +24,25 @@ export default async function HomePage() {
     }
   );
 
+  const [{ data: reservations }, { data: providedReservations }] = user
+    ? await Promise.all([
+        supabase
+          .from("reservations")
+          .select("date, start_hour, end_hour")
+          .eq("booker_id", user.id)
+          .eq("status", "confirmed")
+          .gte("date", fromDate)
+          .lte("date", toDate),
+        supabase
+          .from("reservations")
+          .select("date, start_hour, end_hour")
+          .eq("provider_id", user.id)
+          .eq("status", "confirmed")
+          .gte("date", fromDate)
+          .lte("date", toDate),
+      ])
+    : [{ data: [] }, { data: [] }];
+
   const hasAnySlots = (availability || []).length > 0;
 
   return (
@@ -43,17 +62,33 @@ export default async function HomePage() {
             לחץ על שעה זמינה כדי להזמין
           </p>
 
-          <AvailabilityCalendarGrid availability={availability || []} />
+          <AvailabilityCalendarGrid
+            availability={availability || []}
+            reservations={reservations || []}
+            providedReservations={providedReservations || []}
+          />
 
           {/* Legend */}
-          <div className="flex gap-4 justify-center text-[10px] text-[var(--color-text-secondary)]">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center text-[10px] text-[var(--color-text-secondary)]">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-[var(--color-primary-pale)]" />
               <span>זמין</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-accent-light)] opacity-60" />
+              <div className="w-3 h-3 rounded-sm bg-[var(--color-surface)] ring-1 ring-inset ring-[var(--color-primary-light)]" />
+              <span>נותר אחד</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-sm bg-[var(--color-navy)]" />
               <span>שלך</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-sm bg-[var(--color-accent)]" />
+              <span>שלך — נתפס</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-sm bg-[var(--color-success)]" />
+              <span>הזמנתי</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm cell-past" />

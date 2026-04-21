@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 
 const tabs = [
   {
@@ -49,6 +50,39 @@ const tabs = [
   },
 ];
 
+function NavTabContent({
+  icon,
+  label,
+  isActive,
+}: {
+  icon: ReactNode;
+  label: string;
+  isActive: boolean;
+}) {
+  const { pending } = useLinkStatus();
+  const showActive = isActive || pending;
+
+  return (
+    <div
+      className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors min-w-[64px] ${
+        showActive
+          ? "bg-[var(--color-primary-pale)] text-[var(--color-primary-dark)]"
+          : "text-[var(--color-text-muted)]"
+      }`}
+    >
+      {icon}
+      <span className="text-[10px] font-medium leading-tight">{label}</span>
+      {/* Pending dot — always rendered, opacity toggled to avoid layout shift */}
+      <span
+        aria-hidden
+        className={`absolute top-0.5 end-0.5 w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] transition-opacity ${
+          pending ? "opacity-100 animate-pulse" : "opacity-0"
+        }`}
+      />
+    </div>
+  );
+}
+
 export default function BottomNav() {
   const pathname = usePathname();
 
@@ -58,19 +92,12 @@ export default function BottomNav() {
         {tabs.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
           return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors min-w-[64px] ${
-                isActive
-                  ? "text-[var(--color-primary-dark)]"
-                  : "text-[var(--color-text-muted)]"
-              }`}
-            >
-              {tab.icon}
-              <span className="text-[10px] font-medium leading-tight">
-                {tab.label}
-              </span>
+            <Link key={tab.href} href={tab.href}>
+              <NavTabContent
+                icon={tab.icon}
+                label={tab.label}
+                isActive={isActive}
+              />
             </Link>
           );
         })}
