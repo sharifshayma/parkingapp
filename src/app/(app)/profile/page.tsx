@@ -5,18 +5,19 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, ParkingSpot } from "@/lib/types/domain";
+import type { ParkingSpot } from "@/lib/types/domain";
 import { useRouter } from "next/navigation";
 import { formatDateISO } from "@/lib/utils/time";
+import { updateProfile } from "@/lib/actions/auth";
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string>("");
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
   const [lockedSpotIds, setLockedSpotIds] = useState<Set<string>>(new Set());
   const [editingSpotId, setEditingSpotId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [newSpot, setNewSpot] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,8 +49,8 @@ export default function ProfilePage() {
         .eq("owner_id", user.id);
 
       if (profileData) {
-        setProfile(profileData);
         setFullName(profileData.full_name || "");
+        setPhone(profileData.phone || "");
       }
 
       const spotList = spotsData ?? [];
@@ -83,23 +84,14 @@ export default function ProfilePage() {
     setSuccess("");
     setSaving(true);
 
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    const result = await updateProfile({ fullName, phone });
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    if (updateError) {
-      setError("שגיאה בעדכון הפרופיל");
+    if (result.error) {
+      setError(result.error);
     } else {
+      if (result.phone) {
+        setPhone(result.phone);
+      }
       setSuccess("הפרופיל עודכן בהצלחה");
       setTimeout(() => setSuccess(""), 3000);
     }
@@ -235,19 +227,23 @@ export default function ProfilePage() {
             </span>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-[var(--color-text-secondary)]">
-              טלפון
-            </span>
-            <span className="text-sm font-numbers" dir="ltr">
-              {profile?.phone || "—"}
-            </span>
-          </div>
-
           <Input
             label="שם מלא"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            required
+          />
+
+          <Input
+            label="מספר טלפון"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            placeholder="050-1234567"
+            dir="ltr"
+            className="text-left"
+            autoComplete="tel"
           />
 
           {error && (
@@ -257,7 +253,11 @@ export default function ProfilePage() {
             <p className="text-sm text-[var(--color-success)]">{success}</p>
           )}
 
-          <Button onClick={handleSave} disabled={saving} fullWidth>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !fullName.trim() || !phone.trim()}
+            fullWidth
+          >
             {saving ? "שומר..." : "שמור שינויים"}
           </Button>
         </div>

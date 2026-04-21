@@ -178,3 +178,61 @@ export async function completeProfile(formData: FormData) {
 
   redirect("/home");
 }
+
+export async function updateProfile(input: {
+  fullName: string;
+  phone: string;
+}): Promise<{ error?: string; phone?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "יש להתחבר מחדש" };
+  }
+
+  const fullName = input.fullName.trim();
+  const rawPhone = input.phone.trim();
+
+  if (!fullName) {
+    return { error: "יש למלא שם מלא" };
+  }
+
+  if (!rawPhone) {
+    return { error: "יש למלא מספר טלפון" };
+  }
+
+  const { valid, e164 } = parseAndValidatePhone(rawPhone);
+  if (!valid || !e164) {
+    return { error: "מספר טלפון לא תקין" };
+  }
+
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({
+      full_name: fullName,
+      phone: e164,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (updateError) {
+    await reportError(updateError, {
+      tags: { action: "updateProfile", step: "update_profile" },
+      extra: {
+        userId: user.id,
+        code: updateError.code,
+        details: updateError.details,
+        hint: updateError.hint,
+        message: updateError.message,
+      },
+    });
+    if (updateError.code === "23505") {
+      return { error: "מספר הטלפון הזה כבר רשום על משתמש אחר" };
+    }
+    return { error: "שגיאה בעדכון הפרופיל" };
+  }
+
+  return { phone: e164 };
+}
