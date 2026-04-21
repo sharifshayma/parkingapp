@@ -1,6 +1,11 @@
 import React from "react";
 
-export type AvailabilityCellState = "past" | "available" | "own" | "empty";
+export type AvailabilityCellState =
+  | "past"
+  | "available"
+  | "own"
+  | "empty"
+  | "reserved";
 
 interface AvailabilityHourCellProps {
   state: AvailabilityCellState;
@@ -8,32 +13,49 @@ interface AvailabilityHourCellProps {
   onClick?: () => void;
 }
 
-const stateStyles: Record<AvailabilityCellState, string> = {
-  past: "cell-past opacity-40 cursor-not-allowed",
-  available:
-    "bg-[var(--color-primary-pale)] hover:bg-[var(--color-primary-light)] cursor-pointer transition-colors",
-  own: "bg-[var(--color-accent-light)] opacity-60 cursor-not-allowed",
-  empty: "bg-[var(--color-surface)]",
-};
+function getStateClasses(state: AvailabilityCellState, count: number): string {
+  switch (state) {
+    case "past":
+      return "cell-past opacity-40 cursor-not-allowed";
+    case "reserved":
+      return "bg-[var(--color-success)] cursor-not-allowed";
+    case "own":
+      return "bg-[var(--color-navy)] cursor-not-allowed";
+    case "available":
+      return count >= 2
+        ? "bg-[var(--color-primary-pale)] hover:bg-[var(--color-primary-light)] cursor-pointer transition-colors"
+        : "bg-[var(--color-surface)] ring-1 ring-inset ring-[var(--color-primary-light)] hover:bg-[var(--color-primary-pale)] cursor-pointer transition-colors";
+    case "empty":
+      return "bg-[var(--color-surface)]";
+  }
+}
 
 export default function AvailabilityHourCell({
   state,
   availableCount,
   onClick,
 }: AvailabilityHourCellProps) {
+  const stateCls = getStateClasses(state, availableCount);
+  const isClickable = state === "available";
+
   return (
     <div
-      className={`h-full border-b border-[var(--color-primary-pale)]/40 select-none relative ${stateStyles[state]}`}
-      onClick={state === "available" ? onClick : undefined}
+      className={`h-full border-b border-[var(--color-primary-pale)]/40 select-none relative ${stateCls}`}
+      onClick={isClickable ? onClick : undefined}
     >
-      {state === "available" && availableCount > 1 && (
+      {state === "available" && (
         <span className="absolute top-0.5 end-1 text-[9px] font-numbers font-bold text-[var(--color-primary-dark)]">
           {availableCount}
         </span>
       )}
       {state === "own" && (
-        <span className="absolute top-1 end-1 text-[9px] font-medium text-[var(--color-accent)]">
+        <span className="absolute top-1 end-1 text-[9px] font-medium text-white">
           שלך
+        </span>
+      )}
+      {state === "reserved" && (
+        <span className="absolute top-1 end-1 text-[10px] font-bold text-white leading-none">
+          ✓
         </span>
       )}
     </div>

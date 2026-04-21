@@ -13,8 +13,15 @@ import {
   clampToCurrentHour,
 } from "@/lib/utils/time";
 
+export interface ReservedRange {
+  date: string;
+  start_hour: number;
+  end_hour: number;
+}
+
 interface AvailabilityCalendarGridProps {
   availability: AggregatedAvailability[];
+  reservations?: ReservedRange[];
 }
 
 interface HourInfo {
@@ -33,6 +40,7 @@ function getShortDayName(date: Date): string {
 
 export default function AvailabilityCalendarGrid({
   availability,
+  reservations = [],
 }: AvailabilityCalendarGridProps) {
   const router = useRouter();
   const dates = get7DayWindow();
@@ -64,6 +72,17 @@ export default function AvailabilityCalendarGrid({
     return map;
   }, [availability]);
 
+  // Flatten reservations to "YYYY-MM-DD_HH" keys
+  const reservedHours = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of reservations) {
+      for (let h = r.start_hour; h < r.end_hour; h++) {
+        set.add(`${r.date}_${h}`);
+      }
+    }
+    return set;
+  }, [reservations]);
+
   // Sync vertical scroll between gutter and grid
   const syncScroll = useCallback((source: "gutter" | "grid") => {
     if (syncing.current) return;
@@ -86,8 +105,11 @@ export default function AvailabilityCalendarGrid({
 
   function getCellState(dayIndex: number, hour: number): AvailabilityCellState {
     const dateStr = formatDateISO(dates[dayIndex]);
+    const key = `${dateStr}_${hour}`;
+    // Priority: past → reserved → own → available → empty
     if (isToday(dates[dayIndex]) && hour < clampToCurrentHour()) return "past";
-    const info = hourMap.get(`${dateStr}_${hour}`);
+    if (reservedHours.has(key)) return "reserved";
+    const info = hourMap.get(key);
     if (!info) return "empty";
     if (info.isOwnOnly) return "own";
     return "available";
