@@ -4,6 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 
+async function reportError(
+  error: unknown,
+  context: Parameters<typeof Sentry.captureException>[1]
+) {
+  Sentry.captureException(error, context);
+  // Vercel serverless: flush the transport before the lambda freezes.
+  await Sentry.flush(2000);
+}
+
 export async function signIn(email: string, password: string) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -12,7 +21,7 @@ export async function signIn(email: string, password: string) {
   });
 
   if (error) {
-    Sentry.captureException(error, {
+    await reportError(error, {
       tags: { action: "signIn", step: "signInWithPassword" },
       extra: { email, status: error.status, code: error.code },
     });
@@ -27,7 +36,7 @@ export async function signIn(email: string, password: string) {
     .maybeSingle();
 
   if (profileError) {
-    Sentry.captureException(profileError, {
+    await reportError(profileError, {
       tags: { action: "signIn", step: "fetch_profile" },
       extra: {
         userId: data.user.id,
@@ -45,7 +54,7 @@ export async function signIn(email: string, password: string) {
       phone: "",
     });
     if (insertError) {
-      Sentry.captureException(insertError, {
+      await reportError(insertError, {
         tags: { action: "signIn", step: "create_profile" },
         extra: {
           userId: data.user.id,
@@ -74,7 +83,7 @@ export async function signUp(email: string, password: string) {
   });
 
   if (error) {
-    Sentry.captureException(error, {
+    await reportError(error, {
       tags: { action: "signUp", step: "signUp" },
       extra: { email, status: error.status, code: error.code },
     });
@@ -90,6 +99,7 @@ export async function signUp(email: string, password: string) {
       tags: { action: "signUp", step: "no_user_returned" },
       extra: { email },
     });
+    await Sentry.flush(2000);
     return { error: "שגיאה בהרשמה" };
   }
 
@@ -99,7 +109,7 @@ export async function signUp(email: string, password: string) {
     phone: "",
   });
   if (insertError) {
-    Sentry.captureException(insertError, {
+    await reportError(insertError, {
       tags: { action: "signUp", step: "create_profile" },
       extra: {
         userId: data.user.id,
@@ -142,7 +152,7 @@ export async function completeProfile(formData: FormData) {
     .eq("id", user.id);
 
   if (profileError) {
-    Sentry.captureException(profileError, {
+    await reportError(profileError, {
       tags: { action: "completeProfile", step: "update_profile" },
       extra: {
         userId: user.id,
@@ -166,7 +176,7 @@ export async function completeProfile(formData: FormData) {
         });
 
       if (spotError) {
-        Sentry.captureException(spotError, {
+        await reportError(spotError, {
           tags: { action: "completeProfile", step: "insert_parking_spot" },
           extra: {
             userId: user.id,
