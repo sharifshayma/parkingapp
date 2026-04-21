@@ -138,7 +138,7 @@ export default function OfferParkingSheet() {
   return (
     <>
       <Button variant="primary" size="sm" fullWidth onClick={openSheet}>
-        הצע חניה
+        להציע
       </Button>
 
       {open && (
@@ -264,7 +264,7 @@ export default function OfferParkingSheet() {
                     onClick={submit}
                     disabled={!canSubmit}
                   >
-                    {submitting ? "שומר…" : "הצע חניה"}
+                    {submitting ? "שומר…" : "להציע"}
                   </Button>
                 )}
 

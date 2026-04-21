@@ -110,7 +110,7 @@ export default function CompleteProfilePage() {
         )}
 
         <Button type="submit" fullWidth disabled={loading}>
-          {loading ? "שומר..." : "סיום והתחלה"}
+          {loading ? "שומר..." : "להתחיל"}
         </Button>
       </form>
     </Card>
