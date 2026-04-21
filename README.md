@@ -41,6 +41,7 @@ Required variables:
 | `NEXT_PUBLIC_POSTHOG_HOST` | PostHog host (defaults to `https://app.posthog.com`) |
 | `RESEND_API_KEY` | Resend API key — sends the approval email when a user is approved (optional; email is skipped if unset) |
 | `EMAIL_FROM` | From address for approval email, e.g. `Parking App <noreply@yourdomain.com>` — required when `RESEND_API_KEY` is set |
+| `EMAIL_REPLY_TO` | Optional `Reply-To` address. When set, replies to the approval email go here (e.g. an admin inbox) |
 | `NEXT_PUBLIC_APP_URL` | Public app URL used inside the approval email (defaults to `https://parkingapp.shayma.me`) |
 
 ### 3. Apply database migrations

@@ -20,11 +20,13 @@ export async function sendApprovalEmail(
   const resend = new Resend(apiKey);
   const greeting = fullName ? `שלום ${fullName},` : "שלום,";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://parkingapp.shayma.me";
+  const replyTo = process.env.EMAIL_REPLY_TO;
 
   try {
     const result = await resend.emails.send({
       from,
       to: toEmail,
+      ...(replyTo ? { replyTo } : {}),
       subject: "החשבון שלך אושר — שיתוף חניה בגינדי 4",
       html: `
         <div dir="rtl" style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1f2937;">
