@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendApprovalEmail } from "@/lib/email/approval";
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 
@@ -24,6 +26,13 @@ export async function approveUser(userId: string) {
   const gate = await requireAdmin();
   if (!gate.ok) return { error: "אין הרשאה" };
 
+  // Capture prior status so we only notify on the pending→approved transition.
+  const { data: priorProfile } = await gate.supabase
+    .from("profiles")
+    .select("status, full_name")
+    .eq("id", userId)
+    .single();
+
   const { error } = await gate.supabase
     .from("profiles")
     .update({
@@ -41,6 +50,33 @@ export async function approveUser(userId: string) {
     });
     await Sentry.flush(2000);
     return { error: "שגיאה באישור המשתמש" };
+  }
+
+  if (priorProfile?.status === "pending") {
+    try {
+      const admin = createAdminClient();
+      const { data: authUser } = await admin.auth.admin.getUserById(userId);
+      const result = await sendApprovalEmail(
+        authUser?.user?.email,
+        priorProfile.full_name ?? null
+      );
+      if (!result.sent) {
+        console.warn("[admin] approval email not sent", { userId, reason: result.reason });
+        if (result.reason === "send_failed") {
+          Sentry.captureException(result.error, {
+            tags: { action: "approveUser.sendEmail" },
+            extra: { userId },
+          });
+        }
+      }
+    } catch (emailError) {
+      // Email failures must not break approval.
+      console.error("[admin] approval email threw", { userId, emailError });
+      Sentry.captureException(emailError, {
+        tags: { action: "approveUser.sendEmail" },
+        extra: { userId },
+      });
+    }
   }
 
   revalidatePath("/admin");
