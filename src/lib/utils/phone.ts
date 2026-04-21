@@ -30,5 +30,5 @@ export function buildThankYouMessage(
   startHour: number,
   endHour: number
 ): string {
-  return `היי! תודה שהשארת לי את החניה ב-${date} בשעות ${String(startHour).padStart(2, "0")}:00-${String(endHour).padStart(2, "0")}:00. מעריך/ה מאוד! 🙏`;
+  return `היי! מעריך/ה את העזרה עם החניה ב-${date} בשעות ${String(startHour).padStart(2, "0")}:00-${String(endHour).padStart(2, "0")}:00. 🙏`;
 }
