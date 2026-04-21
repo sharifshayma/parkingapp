@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import {
-  get7DayWindow,
+  getMonthWindow,
   formatDateISO,
   formatDateHebrew,
   formatHour,
@@ -28,7 +28,7 @@ function minStartForDate(d: Date): number {
 
 export default function BookingRequestSheet() {
   const router = useRouter();
-  const dates = useMemo(() => get7DayWindow(), []);
+  const dates = useMemo(() => getMonthWindow(), []);
   const [open, setOpen] = useState(false);
   const [dayIndex, setDayIndex] = useState(0);
   const [startHour, setStartHour] = useState(0);
@@ -391,7 +391,7 @@ export default function BookingRequestSheet() {
             {noAvailabilityAtAll && (
               <div className="flex flex-col gap-2">
                 <div className="text-sm bg-[var(--color-primary-pale)]/60 text-[var(--color-text-primary)] rounded-[var(--radius-input)] px-3 py-3 text-center">
-                  אין חניות זמינות ב-7 הימים הקרובים.
+                  אין חניות זמינות בחודש הקרוב.
                 </div>
                 <Button variant="outline" fullWidth onClick={closeSheet}>
                   סגור

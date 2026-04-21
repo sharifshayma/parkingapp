@@ -1,17 +1,32 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatDateISO, get7DayWindow } from "@/lib/utils/time";
+import { formatDateISO, getWeekWindow } from "@/lib/utils/time";
+import { MAX_WEEKS_AHEAD } from "@/lib/constants";
 import EmptyState from "@/components/ui/EmptyState";
 import AvailabilityCalendarGrid from "@/components/availability/AvailabilityCalendarGrid";
+import WeekNav from "@/components/availability/WeekNav";
 import BookingRequestSheet from "@/components/booking/BookingRequestSheet";
 import OfferParkingSheet from "@/components/offer/OfferParkingSheet";
 
-export default async function HomePage() {
+interface HomePageProps {
+  searchParams: Promise<{ week?: string }>;
+}
+
+function parseWeekOffset(raw: string | undefined): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(Math.trunc(n), MAX_WEEKS_AHEAD - 1));
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const params = await searchParams;
+  const weekOffset = parseWeekOffset(params.week);
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const dates = get7DayWindow();
+  const dates = getWeekWindow(weekOffset);
   const fromDate = formatDateISO(dates[0]);
   const toDate = formatDateISO(dates[dates.length - 1]);
 
@@ -87,12 +102,15 @@ export default async function HomePage() {
 
       <h2 className="text-lg font-bold text-center">חניות זמינות</h2>
 
+      <WeekNav weekOffset={weekOffset} basePath="/home" />
+
       {legend}
 
       {!hasAnySlots ? (
-        <EmptyState message="אין חניות זמינות כרגע. בדוק שוב מאוחר יותר" />
+        <EmptyState message="אין חניות זמינות לשבוע הזה, נסה שוב מאוחר יותר" />
       ) : (
         <AvailabilityCalendarGrid
+          weekOffset={weekOffset}
           availability={availability || []}
           reservations={reservations || []}
           providedReservations={providedReservations || []}

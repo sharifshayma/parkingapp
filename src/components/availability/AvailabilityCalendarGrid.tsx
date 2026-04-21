@@ -5,7 +5,7 @@ import AvailabilityHourCell from "./AvailabilityHourCell";
 import type { AvailabilityCellState } from "./AvailabilityHourCell";
 import type { AggregatedAvailability } from "@/lib/types/domain";
 import {
-  get7DayWindow,
+  getWeekWindow,
   formatDateISO,
   formatHour,
   isToday,
@@ -22,6 +22,7 @@ interface AvailabilityCalendarGridProps {
   availability: AggregatedAvailability[];
   reservations?: ReservedRange[];
   providedReservations?: ReservedRange[];
+  weekOffset?: number;
 }
 
 interface HourInfo {
@@ -40,8 +41,9 @@ export default function AvailabilityCalendarGrid({
   availability,
   reservations = [],
   providedReservations = [],
+  weekOffset = 0,
 }: AvailabilityCalendarGridProps) {
-  const dates = get7DayWindow();
+  const dates = getWeekWindow(weekOffset);
   const gutterRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const syncing = useRef(false);

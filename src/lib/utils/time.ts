@@ -1,4 +1,4 @@
-import { DAYS_WINDOW, HOURS_IN_DAY } from "@/lib/constants";
+import { WEEK_DAYS, MAX_WEEKS_AHEAD, HOURS_IN_DAY } from "@/lib/constants";
 
 export function clampToCurrentHour(): number {
   return new Date().getHours();
@@ -61,16 +61,37 @@ export function splitCrossMidnight(
   ];
 }
 
-export function get7DayWindow(): Date[] {
+export function getWeekWindow(weekOffset: number = 0): Date[] {
   const dates: Date[] = [];
   const now = new Date();
-  for (let i = 0; i < DAYS_WINDOW; i++) {
+  const startOffset = weekOffset * WEEK_DAYS;
+  for (let i = 0; i < WEEK_DAYS; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + startOffset + i);
+    d.setHours(0, 0, 0, 0);
+    dates.push(d);
+  }
+  return dates;
+}
+
+// Returns all dates from today through the last allowed week (inclusive).
+// Used by pickers that show the full future window in a single dropdown.
+export function getMonthWindow(): Date[] {
+  const dates: Date[] = [];
+  const now = new Date();
+  const total = WEEK_DAYS * MAX_WEEKS_AHEAD;
+  for (let i = 0; i < total; i++) {
     const d = new Date(now);
     d.setDate(d.getDate() + i);
     d.setHours(0, 0, 0, 0);
     dates.push(d);
   }
   return dates;
+}
+
+// Legacy alias — new code should prefer getWeekWindow(0).
+export function get7DayWindow(): Date[] {
+  return getWeekWindow(0);
 }
 
 export function formatDateHebrew(date: Date): string {

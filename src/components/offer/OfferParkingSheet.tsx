@@ -6,7 +6,7 @@ import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import {
-  get7DayWindow,
+  getMonthWindow,
   formatDateISO,
   formatDateHebrew,
   formatHour,
@@ -18,7 +18,7 @@ import type { ParkingSpot } from "@/lib/types/domain";
 
 export default function OfferParkingSheet() {
   const router = useRouter();
-  const dates = get7DayWindow();
+  const dates = getMonthWindow();
   const [open, setOpen] = useState(false);
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
   const [spotsLoading, setSpotsLoading] = useState(false);
