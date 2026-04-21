@@ -8,10 +8,11 @@ import WeekCalendarGrid from "@/components/offer/WeekCalendarGrid";
 import SelectionActionBar from "@/components/offer/SelectionActionBar";
 import { useExistingOffers } from "@/hooks/useExistingOffers";
 import { createClient } from "@/lib/supabase/client";
-import { get7DayWindow, formatDateISO } from "@/lib/utils/time";
+import { get7DayWindow, formatDateISO, formatHour, formatDateHebrew } from "@/lib/utils/time";
 import type { ParkingSpot } from "@/lib/types/domain";
 import type { Selection } from "@/hooks/useCalendarDrag";
 import Link from "next/link";
+import Card from "@/components/ui/Card";
 
 export default function OfferPage() {
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
@@ -21,6 +22,8 @@ export default function OfferPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{ id: string; msg: string } | null>(null);
 
   const dates = get7DayWindow();
   const { offers, refetch } = useExistingOffers(selectedSpotId);
@@ -98,6 +101,31 @@ export default function OfferPage() {
     setError("");
   }
 
+  async function handleDelete(slotId: string) {
+    setDeletingId(slotId);
+    setDeleteError(null);
+
+    const supabase = createClient();
+    const { error: rpcError } = await supabase.rpc("delete_offer", { p_slot_id: slotId });
+
+    if (rpcError) {
+      const msg =
+        rpcError.message.includes("OFFER_HAS_BOOKINGS")
+          ? "לא ניתן למחוק — קיימת הזמנה פעילה על החניה. בטל את ההזמנה קודם."
+          : rpcError.message.includes("NOT_AUTHORIZED")
+          ? "אין לך הרשאה למחוק חניה זו"
+          : rpcError.message.includes("SLOT_NOT_FOUND")
+          ? "החניה לא נמצאה"
+          : "שגיאה במחיקת ההצעה";
+      setDeleteError({ id: slotId, msg });
+      setDeletingId(null);
+      return;
+    }
+
+    setDeletingId(null);
+    refetch();
+  }
+
   if (loading) {
     return (
       <div className="py-8">
@@ -172,6 +200,51 @@ export default function OfferPage() {
           error={error}
           success={success}
         />
+      )}
+
+      {offers.length > 0 && (
+        <div className="mt-2">
+          <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] mb-2">
+            ההצעות שלי
+          </h3>
+          <div className="flex flex-col gap-2">
+            {[...offers]
+              .sort((a, b) =>
+                a.date === b.date ? a.start_hour - b.start_hour : a.date.localeCompare(b.date)
+              )
+              .map((offer) => {
+                const date = new Date(offer.date);
+                const isDeleting = deletingId === offer.id;
+                const showErr = deleteError?.id === offer.id;
+                return (
+                  <Card key={offer.id} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-numbers text-[var(--color-primary-dark)]">
+                          {formatHour(offer.start_hour)}–{formatHour(offer.end_hour)}
+                        </div>
+                        <div className="text-xs text-[var(--color-text-secondary)]">
+                          {formatDateHebrew(date)}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(offer.id)}
+                        disabled={isDeleting}
+                        aria-label="מחק הצעה"
+                      >
+                        {isDeleting ? "מוחק..." : "מחק"}
+                      </Button>
+                    </div>
+                    {showErr && (
+                      <p className="text-xs text-red-600 mt-1">{deleteError?.msg}</p>
+                    )}
+                  </Card>
+                );
+              })}
+          </div>
+        </div>
       )}
     </div>
   );
