@@ -5,10 +5,13 @@ import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { parseAndValidatePhone } from "@/lib/utils/phone";
 
-type ErrorContext = Parameters<typeof Sentry.captureException>[1];
+type ErrorContext = {
+  tags?: Record<string, string | number | boolean | undefined>;
+  extra?: Record<string, unknown>;
+};
 
 async function reportError(error: unknown, context: ErrorContext) {
-  console.error("[auth]", context?.tags, context?.extra, error);
+  console.error("[auth]", context.tags, context.extra, error);
   Sentry.captureException(error, context);
   // Vercel serverless: flush the transport before the lambda freezes.
   await Sentry.flush(2000);
