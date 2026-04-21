@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateISO, get7DayWindow } from "@/lib/utils/time";
 import EmptyState from "@/components/ui/EmptyState";
 import AvailabilityCalendarGrid from "@/components/availability/AvailabilityCalendarGrid";
+import BookingRequestSheet from "@/components/booking/BookingRequestSheet";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 
@@ -55,19 +56,12 @@ export default async function HomePage() {
       </div>
 
       {!hasAnySlots ? (
-        <EmptyState message="אין חניות זמינות כרגע. בדוק שוב מאוחר יותר" />
+        <>
+          <BookingRequestSheet />
+          <EmptyState message="אין חניות זמינות כרגע. בדוק שוב מאוחר יותר" />
+        </>
       ) : (
         <>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            לחץ על שעה זמינה כדי להזמין
-          </p>
-
-          <AvailabilityCalendarGrid
-            availability={availability || []}
-            reservations={reservations || []}
-            providedReservations={providedReservations || []}
-          />
-
           {/* Legend */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 justify-center text-[10px] text-[var(--color-text-secondary)]">
             <div className="flex items-center gap-1">
@@ -91,6 +85,18 @@ export default async function HomePage() {
               <span>עבר</span>
             </div>
           </div>
+
+          <BookingRequestSheet />
+
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            לחץ על שעה זמינה בלוח כדי להזמין ישירות
+          </p>
+
+          <AvailabilityCalendarGrid
+            availability={availability || []}
+            reservations={reservations || []}
+            providedReservations={providedReservations || []}
+          />
         </>
       )}
     </div>
