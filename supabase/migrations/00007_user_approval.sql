@@ -38,14 +38,14 @@ CREATE POLICY "Admins can update any profile"
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM public.profiles me
-      WHERE me.id = auth.uid() AND me.is_admin = TRUE
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.is_admin = TRUE
     )
   )
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM public.profiles me
-      WHERE me.id = auth.uid() AND me.is_admin = TRUE
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.is_admin = TRUE
     )
   );
 
