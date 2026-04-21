@@ -83,9 +83,10 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-3 py-4">
-      <h2 className="text-lg font-bold">חניות זמינות</h2>
-
       {actionRow}
+
+      <h2 className="text-lg font-bold text-center">חניות זמינות</h2>
+
       {legend}
 
       {!hasAnySlots ? (

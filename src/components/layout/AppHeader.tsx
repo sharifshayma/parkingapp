@@ -2,8 +2,10 @@
 
 export default function AppHeader() {
   return (
-    <header className="gradient-header px-5 pt-4 pb-6 wave-divider">
-      <h1 className="text-white text-lg font-bold">שיתוף חניה בגינדי 4</h1>
+    <header className="pt-5 pb-2 px-4">
+      <h1 className="text-center text-lg font-bold text-[var(--color-text-primary)]">
+        שיתוף חניה בגינדי 4
+      </h1>
     </header>
   );
 }
