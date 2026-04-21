@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { createClient } from "@/lib/supabase/client";
 import { formatHour, formatDateISO } from "@/lib/utils/time";
-import type { ParkingSpot } from "@/lib/types/domain";
+import type { ParkingSpot, AvailabilitySlot } from "@/lib/types/domain";
 import Link from "next/link";
 
 interface SpotReservation {
@@ -44,6 +44,9 @@ export default function MyParkingPage() {
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<string>("");
   const [upcoming, setUpcoming] = useState<SpotReservation[]>([]);
+  const [offers, setOffers] = useState<AvailabilitySlot[]>([]);
+  const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
+  const [offerError, setOfferError] = useState<{ id: string; msg: string } | null>(null);
   const [history, setHistory] = useState<SpotReservation[]>([]);
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
@@ -70,6 +73,41 @@ export default function MyParkingPage() {
     }
     loadSpots();
   }, []);
+
+  const loadOffers = useCallback(async (spotId: string) => {
+    const supabase = createClient();
+    const today = formatDateISO(new Date());
+    const { data } = await supabase
+      .from("availability_slots")
+      .select("*")
+      .eq("parking_spot_id", spotId)
+      .eq("is_available", true)
+      .gte("date", today)
+      .order("date", { ascending: true })
+      .order("start_hour", { ascending: true });
+    setOffers((data ?? []) as AvailabilitySlot[]);
+  }, []);
+
+  async function handleDeleteOffer(offerId: string) {
+    setDeletingOfferId(offerId);
+    setOfferError(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("delete_offer", { p_slot_id: offerId });
+    if (error) {
+      const msg = error.message.includes("OFFER_HAS_BOOKINGS")
+        ? "לא ניתן למחוק — קיימת הזמנה פעילה. בטל את ההזמנה קודם."
+        : error.message.includes("NOT_AUTHORIZED")
+        ? "אין לך הרשאה למחוק הצעה זו"
+        : error.message.includes("SLOT_NOT_FOUND")
+        ? "ההצעה לא נמצאה"
+        : "שגיאה במחיקת ההצעה";
+      setOfferError({ id: offerId, msg });
+      setDeletingOfferId(null);
+      return;
+    }
+    setOffers((prev) => prev.filter((o) => o.id !== offerId));
+    setDeletingOfferId(null);
+  }
 
   const loadUpcoming = useCallback(async (spotId: string) => {
     const supabase = createClient();
@@ -113,15 +151,18 @@ export default function MyParkingPage() {
     if (!selectedSpot) return;
 
     setUpcoming([]);
+    setOffers([]);
+    setOfferError(null);
     setHistory([]);
     setHistoryHasMore(false);
 
     loadUpcoming(selectedSpot);
+    loadOffers(selectedSpot);
     loadHistoryPage(selectedSpot, 0).then((page) => {
       setHistoryHasMore(page.length > HISTORY_PAGE_SIZE);
       setHistory(page.slice(0, HISTORY_PAGE_SIZE));
     });
-  }, [selectedSpot, loadUpcoming, loadHistoryPage]);
+  }, [selectedSpot, loadUpcoming, loadOffers, loadHistoryPage]);
 
   async function handleLoadMoreHistory() {
     setHistoryLoadingMore(true);
@@ -196,6 +237,53 @@ export default function MyParkingPage() {
           ))}
         </div>
       )}
+
+      {/* Offered times (my availability) */}
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] mb-2">
+          זמנים שהצעתי
+        </h3>
+        {offers.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-muted)] text-center py-4">
+            אין הצעות פעילות
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {offers.map((o) => {
+              const isDeleting = deletingOfferId === o.id;
+              const showErr = offerError?.id === o.id;
+              return (
+                <Card key={o.id} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-numbers text-[var(--color-primary-dark)]">
+                        {formatHour(o.start_hour)}–{formatHour(o.end_hour)}
+                      </div>
+                      <div className="text-sm text-[var(--color-text-secondary)]">
+                        {o.date}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteOffer(o.id)}
+                      disabled={isDeleting}
+                      aria-label="מחק הצעה"
+                    >
+                      {isDeleting ? "מוחק..." : "מחק"}
+                    </Button>
+                  </div>
+                  {showErr && (
+                    <p className="text-xs text-[var(--color-error)] mt-1">
+                      {offerError?.msg}
+                    </p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Upcoming reservations */}
       <div>

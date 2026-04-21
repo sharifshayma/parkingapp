@@ -221,7 +221,7 @@ export default function BookingRequestSheet() {
         fullWidth
         onClick={openSheet}
       >
-        הזמנת חניה
+        להזמין
       </Button>
 
       {open && (
