@@ -14,20 +14,18 @@ interface AvailabilityHourCellProps {
   onClick?: () => void;
 }
 
-function getStateClasses(state: AvailabilityCellState, count: number): string {
+function getStateClasses(state: AvailabilityCellState): string {
   switch (state) {
     case "past":
       return "cell-past opacity-40 cursor-not-allowed";
     case "reserved":
       return "bg-[var(--color-success)] cursor-not-allowed";
     case "own_booked":
-      return "bg-[var(--color-accent)] cursor-not-allowed";
+      return "bg-[var(--color-navy-light)] cursor-not-allowed";
     case "own":
       return "bg-[var(--color-navy)] cursor-not-allowed";
     case "available":
-      return count >= 2
-        ? "bg-[var(--color-primary-pale)] hover:bg-[var(--color-primary-light)] cursor-pointer transition-colors"
-        : "bg-[var(--color-surface)] ring-1 ring-inset ring-[var(--color-primary-light)] hover:bg-[var(--color-primary-pale)] cursor-pointer transition-colors";
+      return "bg-[var(--color-primary-pale)] hover:bg-[var(--color-primary-light)] cursor-pointer transition-colors";
     case "empty":
       return "bg-[var(--color-surface)]";
   }
@@ -38,7 +36,7 @@ export default function AvailabilityHourCell({
   availableCount,
   onClick,
 }: AvailabilityHourCellProps) {
-  const stateCls = getStateClasses(state, availableCount);
+  const stateCls = getStateClasses(state);
   const isClickable = state === "available";
 
   return (
@@ -47,24 +45,35 @@ export default function AvailabilityHourCell({
       onClick={isClickable ? onClick : undefined}
     >
       {state === "available" && (
-        <span className="absolute top-0.5 end-1 text-[9px] font-numbers font-bold text-[var(--color-primary-dark)]">
+        <span className="absolute top-0.5 end-1 text-[10px] font-numbers font-bold text-[var(--color-primary-dark)] leading-none">
           {availableCount}
         </span>
       )}
       {state === "own" && (
-        <span className="absolute top-1 end-1 text-[9px] font-medium text-white">
+        <span className="absolute top-1 end-1 text-[10px] font-medium text-white leading-none">
           שלך
         </span>
       )}
       {state === "own_booked" && (
-        <span className="absolute top-1 end-1 text-[9px] font-medium text-white">
-          נתפס
+        <span className="absolute top-1 end-1 text-[10px] font-medium text-white leading-none">
+          תפוס
         </span>
       )}
       {state === "reserved" && (
-        <span className="absolute top-1 end-1 text-[10px] font-bold text-white leading-none">
-          ✓
-        </span>
+        <svg
+          className="absolute top-1 end-1 text-white"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
       )}
     </div>
   );
