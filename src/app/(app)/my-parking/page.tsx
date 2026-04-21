@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { createClient } from "@/lib/supabase/client";
 import { formatHour, formatDateISO } from "@/lib/utils/time";
-import type { ParkingSpot, AvailabilitySlot } from "@/lib/types/domain";
+import type { ParkingSpot } from "@/lib/types/domain";
 import Link from "next/link";
 
 interface SpotReservation {
@@ -16,6 +16,97 @@ interface SpotReservation {
   end_hour: number;
   status: string;
   booker_name: string;
+}
+
+// An original offer reconstructed from its current availability remnants +
+// any confirmed reservations that were carved out of it. The DB splits the
+// original availability_slot when a booking is made, so we re-merge here to
+// surface what the provider actually offered.
+interface MergedOffer {
+  key: string;
+  date: string;
+  start_hour: number;
+  end_hour: number;
+  slot_ids: string[];
+  has_bookings: boolean;
+}
+
+function mergeOffers(
+  avails: { id: string; date: string; start_hour: number; end_hour: number }[],
+  reservations: { date: string; start_hour: number; end_hour: number }[]
+): MergedOffer[] {
+  type Range = {
+    start: number;
+    end: number;
+    slot_id: string | null;
+    is_reservation: boolean;
+  };
+  const byDate = new Map<string, Range[]>();
+  for (const a of avails) {
+    if (!byDate.has(a.date)) byDate.set(a.date, []);
+    byDate.get(a.date)!.push({
+      start: a.start_hour,
+      end: a.end_hour,
+      slot_id: a.id,
+      is_reservation: false,
+    });
+  }
+  for (const r of reservations) {
+    if (!byDate.has(r.date)) byDate.set(r.date, []);
+    byDate.get(r.date)!.push({
+      start: r.start_hour,
+      end: r.end_hour,
+      slot_id: null,
+      is_reservation: true,
+    });
+  }
+
+  const merged: MergedOffer[] = [];
+  const dates = Array.from(byDate.keys()).sort();
+  for (const date of dates) {
+    const ranges = byDate.get(date)!.sort((a, b) => a.start - b.start);
+    if (ranges.length === 0) continue;
+
+    let cur = {
+      start: ranges[0].start,
+      end: ranges[0].end,
+      slot_ids: ranges[0].slot_id ? [ranges[0].slot_id] : [],
+      has_bookings: ranges[0].is_reservation,
+    };
+    for (let i = 1; i < ranges.length; i++) {
+      const r = ranges[i];
+      if (r.start <= cur.end) {
+        // Touching or overlapping — same original offer
+        cur.end = Math.max(cur.end, r.end);
+        if (r.slot_id) cur.slot_ids.push(r.slot_id);
+        if (r.is_reservation) cur.has_bookings = true;
+      } else {
+        merged.push({
+          key: `${date}-${cur.start}-${cur.end}`,
+          date,
+          start_hour: cur.start,
+          end_hour: cur.end,
+          slot_ids: cur.slot_ids,
+          has_bookings: cur.has_bookings,
+        });
+        cur = {
+          start: r.start,
+          end: r.end,
+          slot_ids: r.slot_id ? [r.slot_id] : [],
+          has_bookings: r.is_reservation,
+        };
+      }
+    }
+    merged.push({
+      key: `${date}-${cur.start}-${cur.end}`,
+      date,
+      start_hour: cur.start,
+      end_hour: cur.end,
+      slot_ids: cur.slot_ids,
+      has_bookings: cur.has_bookings,
+    });
+  }
+  return merged;
 }
 
 const HISTORY_PAGE_SIZE = 5;
@@ -44,9 +135,9 @@ export default function MyParkingPage() {
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<string>("");
   const [upcoming, setUpcoming] = useState<SpotReservation[]>([]);
-  const [offers, setOffers] = useState<AvailabilitySlot[]>([]);
-  const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
-  const [offerError, setOfferError] = useState<{ id: string; msg: string } | null>(null);
+  const [offers, setOffers] = useState<MergedOffer[]>([]);
+  const [deletingOfferKey, setDeletingOfferKey] = useState<string | null>(null);
+  const [offerError, setOfferError] = useState<{ key: string; msg: string } | null>(null);
   const [history, setHistory] = useState<SpotReservation[]>([]);
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
@@ -77,36 +168,66 @@ export default function MyParkingPage() {
   const loadOffers = useCallback(async (spotId: string) => {
     const supabase = createClient();
     const today = formatDateISO(new Date());
-    const { data } = await supabase
-      .from("availability_slots")
-      .select("*")
-      .eq("parking_spot_id", spotId)
-      .eq("is_available", true)
-      .gte("date", today)
-      .order("date", { ascending: true })
-      .order("start_hour", { ascending: true });
-    setOffers((data ?? []) as AvailabilitySlot[]);
+    const [availsRes, resvRes] = await Promise.all([
+      supabase
+        .from("availability_slots")
+        .select("id, date, start_hour, end_hour")
+        .eq("parking_spot_id", spotId)
+        .eq("is_available", true)
+        .gte("date", today),
+      supabase
+        .from("reservations")
+        .select("date, start_hour, end_hour")
+        .eq("parking_spot_id", spotId)
+        .eq("status", "confirmed")
+        .gte("date", today),
+    ]);
+    const avails = (availsRes.data ?? []) as {
+      id: string;
+      date: string;
+      start_hour: number;
+      end_hour: number;
+    }[];
+    const resvs = (resvRes.data ?? []) as {
+      date: string;
+      start_hour: number;
+      end_hour: number;
+    }[];
+    const merged = mergeOffers(avails, resvs).sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return a.start_hour - b.start_hour;
+    });
+    setOffers(merged);
   }, []);
 
-  async function handleDeleteOffer(offerId: string) {
-    setDeletingOfferId(offerId);
+  async function handleDeleteOffer(offer: MergedOffer) {
     setOfferError(null);
-    const supabase = createClient();
-    const { error } = await supabase.rpc("delete_offer", { p_slot_id: offerId });
-    if (error) {
-      const msg = error.message.includes("OFFER_HAS_BOOKINGS")
-        ? "לא ניתן למחוק — קיימת הזמנה פעילה. בטל את ההזמנה קודם."
-        : error.message.includes("NOT_AUTHORIZED")
-        ? "אין לך הרשאה למחוק הצעה זו"
-        : error.message.includes("SLOT_NOT_FOUND")
-        ? "ההצעה לא נמצאה"
-        : "שגיאה במחיקת ההצעה";
-      setOfferError({ id: offerId, msg });
-      setDeletingOfferId(null);
+    if (offer.has_bookings) {
+      setOfferError({
+        key: offer.key,
+        msg: "לא ניתן למחוק — קיימת הזמנה פעילה. בטל את ההזמנה קודם.",
+      });
       return;
     }
-    setOffers((prev) => prev.filter((o) => o.id !== offerId));
-    setDeletingOfferId(null);
+    setDeletingOfferKey(offer.key);
+    const supabase = createClient();
+    for (const slotId of offer.slot_ids) {
+      const { error } = await supabase.rpc("delete_offer", { p_slot_id: slotId });
+      if (error) {
+        const msg = error.message.includes("OFFER_HAS_BOOKINGS")
+          ? "לא ניתן למחוק — קיימת הזמנה פעילה. בטל את ההזמנה קודם."
+          : error.message.includes("NOT_AUTHORIZED")
+          ? "אין לך הרשאה למחוק הצעה זו"
+          : error.message.includes("SLOT_NOT_FOUND")
+          ? "ההצעה לא נמצאה"
+          : "שגיאה במחיקת ההצעה";
+        setOfferError({ key: offer.key, msg });
+        setDeletingOfferKey(null);
+        return;
+      }
+    }
+    setOffers((prev) => prev.filter((o) => o.key !== offer.key));
+    setDeletingOfferKey(null);
   }
 
   const loadUpcoming = useCallback(async (spotId: string) => {
@@ -250,10 +371,10 @@ export default function MyParkingPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {offers.map((o) => {
-              const isDeleting = deletingOfferId === o.id;
-              const showErr = offerError?.id === o.id;
+              const isDeleting = deletingOfferKey === o.key;
+              const showErr = offerError?.key === o.key;
               return (
-                <Card key={o.id} className="flex flex-col gap-1">
+                <Card key={o.key} className="flex flex-col gap-1">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-numbers text-[var(--color-primary-dark)]">
@@ -266,7 +387,7 @@ export default function MyParkingPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteOffer(o.id)}
+                      onClick={() => handleDeleteOffer(o)}
                       disabled={isDeleting}
                       aria-label="מחק הצעה"
                     >
