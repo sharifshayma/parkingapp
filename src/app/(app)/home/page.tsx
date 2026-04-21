@@ -75,16 +75,12 @@ export default async function HomePage() {
               <span>זמין</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-surface)] ring-1 ring-inset ring-[var(--color-primary-light)]" />
-              <span>נותר אחד</span>
-            </div>
-            <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-[var(--color-navy)]" />
               <span>שלך</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-[var(--color-accent)]" />
-              <span>שלך — נתפס</span>
+              <div className="w-3 h-3 rounded-sm bg-[var(--color-navy-light)]" />
+              <span>שלך — תפוס</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-[var(--color-success)]" />
